@@ -1,0 +1,1422 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+# LABMARCS Visualisation
+## Libraries
+
+```{r}
+library(ggplot2)
+library(hrbrthemes)
+library(tidyverse)
+library(plotly)
+library(BBmisc)
+library(scales)
+library(dplyr)
+library(naniar)
+library(gridExtra)
+library(knitr)
+library(moments)
+library(formattable)
+library(IRdisplay)
+library(repr)
+library(data.table)
+library(DescTools)
+```
+
+## Load in data files
+### Outcome data
+#### NBT Outcomes
+
+```{r}
+NBT_outcomes <- read.csv(file("NBT_outcomes.csv"))
+NBT_outcomes = NBT_outcomes %>% 
+  rename(
+    admissionDate = admission_date,
+  )
+NBT_outcomes$admissionDate = as.Date(NBT_outcomes$admissionDate, format="%d/%m/%Y")
+NBT_outcomes = NBT_outcomes %>% 
+  rename(
+    dischargeDate = discharge_date,
+  )
+NBT_outcomes$dischargeDate = as.Date(NBT_outcomes$dischargeDate, format="%d/%m/%Y")
+NBT_outcomes_deaths = NBT_outcomes %>%
+  filter(DischargeOutcomeDesc == "Patient Died")
+NBT_outcomes_deaths$deathDate = NBT_outcomes_deaths$dischargeDate
+NBT_outcomes <- merge(NBT_outcomes,NBT_outcomes_deaths,all=TRUE)
+NBT_outcomes$ITU_Start = as.Date(NBT_outcomes$ITU_Start, format="%d/%m/%Y")
+NBT_outcomes$ITU_End = as.Date(NBT_outcomes$ITU_End, format="%d/%m/%Y")
+NBT_outcomes2 = NBT_outcomes %>% select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+#### UHB Outcomes
+
+```{r}
+UHB_outcomes1 <- read.csv(file("UHB_outcomes1.csv"))
+UHB_outcomes1 = UHB_outcomes1 %>% 
+  rename(
+    admissionDate = attend_date,
+  )
+UHB_outcomes1$admissionDate = as.Date(UHB_outcomes1$admissionDate, format="%d/%m/%Y")
+UHB_outcomes1$dischargeDate = as.Date(UHB_outcomes1$admissionDate + as.integer(UHB_outcomes1$hospital_length_of_stay))
+UHB_outcomes1 = UHB_outcomes1 %>% 
+  rename(
+    deathDate = fu_death_date,
+  )
+UHB_outcomes1$deathDate = as.Date(UHB_outcomes1$deathDate, format="%d/%m/%Y")
+UHB_outcomes1$ITU_Start <- as.Date(NA)
+UHB_outcomes1$ITU_End <- as.Date(NA)
+UHB_outcomes12 = UHB_outcomes1 %>% select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+
+UHB_outcomes2 <- read.csv(file("UHB_outcomes2.csv"))
+UHB_outcomes2 = UHB_outcomes2 %>% 
+  rename(
+    admissionDate = attend_dte,
+  )
+UHB_outcomes2$admissionDate = as.Date(UHB_outcomes2$admissionDate, format="%d/%m/%Y")
+UHB_outcomes2 = UHB_outcomes2 %>% 
+  rename(
+    dischargeDate = outcome_dte,
+  )
+UHB_outcomes2$dischargeDate = as.Date(UHB_outcomes2$dischargeDate, format="%d/%m/%Y")
+UHB_outcomes2_deaths = UHB_outcomes2 %>%
+  filter(outcome == 3)
+UHB_outcomes2_deaths$deathDate = UHB_outcomes2_deaths$dischargeDate
+UHB_outcomes2 <- merge(UHB_outcomes2,UHB_outcomes2_deaths,all=TRUE)
+UHB_outcomes2$ITU_Start <- as.Date(NA)
+UHB_outcomes2$ITU_End <- as.Date(NA)
+UHB_outcomes22 = UHB_outcomes2 %>% select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+#### Weston Outcomes
+
+```{r}
+WestonOutcomes <- read.csv(file("Weston Outcomes.csv"))
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    admissionDate = Admission.date,
+  )
+WestonOutcomes$admissionDate = as.Date(WestonOutcomes$admissionDate, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    dischargeDate = Discharge.date,
+  )
+WestonOutcomes$dischargeDate = as.Date(WestonOutcomes$dischargeDate, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    ITU_Start = ICU.Admission.Date
+  )
+WestonOutcomes$ITU_Start = as.Date(WestonOutcomes$ITU_Start, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    ITU_End = ICU.Discharge.Date
+  )
+WestonOutcomes$ITU_End = as.Date(WestonOutcomes$ITU_End, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    deathDate = Date.of.Death
+  )
+WestonOutcomes$deathDate = as.Date(WestonOutcomes$deathDate, format="%d/%m/%Y")
+WestonOutcomes2 = WestonOutcomes %>% select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+### Merge Outcome data
+
+```{r}
+# Merge outcomes data
+totalOutcomes <- rbind(UHB_outcomes12,UHB_outcomes22,NBT_outcomes2,WestonOutcomes2) # NBT Outcomes must be excluded as inconsistent
+totalOutcomes$deathDate = as.Date(totalOutcomes$deathDate, format="%d/%m/%Y")
+totalOutcomes$ITU_Start = as.Date(totalOutcomes$ITU_Start, format="%d/%m/%Y")
+totalOutcomes$ITU_End = as.Date(totalOutcomes$ITU_End, format="%d/%m/%Y")
+totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format="%d/%m/%Y")
+```
+
+### Load variable data
+#### BE - Bicarbonate Excess
+
+```{r}
+BE <- read.csv(file("BE.csv"))
+BE$Date.Booked.In = as.Date(BE$Date.Booked.In, format="%d/%m/%Y")
+BE = BE %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BE = BE %>%
+  rename(
+    BE_val = Numeric.Result
+  )
+```
+
+#### BNP - B-type natriuretic peptide
+
+```{r}
+BNP <- read.csv(file("BNP.csv"))
+BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format="%d/%m/%Y")
+BNP = BNP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BNP = BNP %>%
+  rename(
+    BNP_val = Numeric.Result
+  )
+```
+
+#### CRP - C-Reactive Protein
+
+```{r}
+CRP <- read.csv(file("CRP.csv"))
+CRP$Date.Booked.In = as.Date(CRP$Date.Booked.In, format="%d/%m/%Y")
+CRP = CRP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+CRP = CRP %>%
+  rename(
+    CRP_val = Numeric.Result
+  )
+```
+
+#### CovidCT - Cycle Threshold (CT) value of PCR for COVID
+
+```{r}
+CovidCT <- read.csv(file("CovidCT.csv"))
+CovidCT['Measure']='CovidCT'
+CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
+CovidCT = CovidCT %>% 
+  rename(
+    date = Specimen.Date,
+  )
+```
+
+#### DDM - D-Dimer 
+
+```{r}
+DDM <- read.csv(file("DDM.csv"))
+DDM$Date.Booked.In = as.Date(DDM$Date.Booked.In, format="%d/%m/%Y")
+DDM = DDM %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+DDM = DDM %>%
+  rename(
+    DDM_val = Numeric.Result
+  )
+```
+
+#### eGFR - Estimated Glomerular Filtration Rate
+
+```{r}
+eGFR <- read.csv(file("eGFR.csv"))
+eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
+eGFR = eGFR %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+eGFR = eGFR %>%
+  rename(
+    eGFR_val = Numeric.Result
+  )
+```
+
+#### FER - Ferritin
+
+```{r}
+FER <- read.csv(file("FER.csv"))
+FER$Date.Booked.In = as.Date(FER$Date.Booked.In, format="%d/%m/%Y")
+FER = FER %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+FER = FER %>%
+  rename(
+    FER_val = Numeric.Result
+  )
+```
+
+#### Fib - Fibrinogen
+
+```{r}
+fib <- read.csv(file("fib.csv"))
+fib$Date.Booked.In = as.Date(fib$Date.Booked.In, format="%d/%m/%Y")
+fib = fib %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+fib = fib %>%
+  rename(
+    fib_val = Numeric.Result
+  )
+```
+
+#### Glucose
+
+```{r}
+Glucose <- read.csv(file("Glucose.csv"))
+Glucose$Date.Booked.In = as.Date(Glucose$Date.Booked.In, format="%d/%m/%Y")
+Glucose = Glucose %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+Glucose = Glucose %>%
+  rename(
+    Glucose_val = Numeric.Result
+  )
+```
+
+#### HB - Hemoglobin
+
+```{r}
+HB <- read.csv(file("HB.csv"))
+HB$Date.Booked.In = as.Date(HB$Date.Booked.In, format="%d/%m/%Y")
+HB = HB %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+HB = HB %>%
+  rename(
+    HB_val = Numeric.Result
+  )
+```
+
+#### HBA1c - glycated haemoglobin
+
+```{r}
+HBA1c <- read.csv(file("HBA1c.csv"))
+HBA1c$Date.Booked.In = as.Date(HBA1c$Date.Booked.In, format="%d/%m/%Y")
+HBA1c = HBA1c %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+HBA1c = HBA1c %>%
+  rename(
+    HBA1c_val = Numeric.Result
+  )
+```
+
+#### LDH - Lactate dehydrogenase
+
+```{r}
+LDH <- read.csv(file("LDH.csv"))
+LDH$Date.Booked.In = as.Date(LDH$Date.Booked.In, format="%d/%m/%Y")
+LDH = LDH %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+LDH = LDH %>%
+  rename(
+    LDH_val = Numeric.Result
+  )
+```
+
+#### PCT - Procalcitonin 
+
+```{r}
+PCT <- read.csv(file("PCT.csv"))
+PCT$Date.Booked.In = as.Date(PCT$Date.Booked.In, format="%d/%m/%Y")
+PCT = PCT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+PCT = PCT %>%
+  rename(
+    PCT_val = Numeric.Result
+  )
+```
+
+#### PLT - Platelet Count
+
+```{r}
+PLT <- read.csv(file("PLT.csv"))
+PLT$Date.Booked.In = as.Date(PLT$Date.Booked.In, format="%d/%m/%Y")
+PLT = PLT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+PLT = PLT %>%
+  rename(
+    PLT_val = Numeric.Result
+  )
+```
+
+#### Trig - Triglycerides
+
+```{r}
+trig <- read.csv(file("trig.csv"))
+trig$Date.Booked.In = as.Date(trig$Date.Booked.In, format="%d/%m/%Y")
+trig = trig %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+trig = trig %>%
+  rename(
+    trig_val = Numeric.Result
+  )
+```
+
+#### Trop - Troponin
+
+```{r}
+trop <- read.csv(file("trop.csv"))
+trop$Date.Booked.In = as.Date(trop$Date.Booked.In, format="%d/%m/%Y")
+trop = trop %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+trop = trop %>%
+  rename(
+    trop_val = Numeric.Result
+  )
+```
+
+#### Vir - Virology
+
+```{r}
+Vir <- read.csv(file("Vir.csv"))
+Vir['Measure']='Vir'
+Vir$Sample.Date = as.Date(Vir$Sample.Date, format="%d/%m/%Y")
+Vir = Vir %>% 
+  rename(
+    date = Sample.Date,
+  )
+Vir = Vir %>% 
+  rename(
+    Adenovirus = Adenovirus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Human_Metapneumovirus = Human.metapneumovirus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Influenza_A = Influenza.A..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Influenza_B = Influenza.B..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_1 = Parainfluenza.Type.1..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_2 = Parainfluenza.Type.2..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_3 = Parainfluenza.Type.3..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_4 = Parainfluenza.Type.4..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Respiratory_Syncytial_Virus = Respiratory.Syncytial.Virus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Rhinovirus = Rhinovirus..PCR.,
+  )
+```
+
+#### FBC - Full Blood Count
+Made up of:
+* Lymphocytes
+* Neutrophils
+* White Cell Count
+
+```{r}
+FBC <- read.csv(file("FBC.csv"))
+FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
+FBC = FBC %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+```
+
+Split off Lymphocytes:
+
+```{r}
+FBCLymph = FBC %>% select(ID,date,Result.Lymphocytes)
+FBCLymph = FBCLymph %>% 
+  rename(
+    Lymphocytes = Result.Lymphocytes,
+  )
+```
+
+Split off Neutrophils:
+
+```{r}
+FBCNeutr = FBC %>% select(ID,date,Result.Neutrophils)
+FBCNeutr = FBCNeutr %>% 
+  rename(
+    Neutrophils = Result.Neutrophils,
+  )
+```
+
+Split off White Cell Count:
+
+```{r}
+FBCWCC = FBC %>% select(ID,date,Result.WCC)
+FBCWCC = FBCWCC %>% 
+  rename(
+    WCC = Result.WCC,
+  )
+```
+
+Split off Neutrophil to Lymphocyte Ratio
+
+```{r}
+FBCNLR = FBC %>% select(ID,date,NLR)
+FBCNLR = FBCNLR %>% 
+  rename(
+    NLR_val = NLR,
+  )
+```
+
+#### CovidCT - Cycle Threshold (CT) value of PCR for COVID
+
+```{r}
+CovidCT <- read.csv(file("CovidCT.csv"))
+CovidCT['Measure']='CovidCT'
+CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
+CovidCT = CovidCT %>% 
+  rename(
+    date = Specimen.Date,
+  )
+```
+
+#### Clot
+Made up of:
+* APTT - Activated Partial Thromboplastin Time
+* PT - Prothrombin Time
+
+```{r}
+Clot <- read.csv(file("Clot.csv"))
+Clot$Date.Booked.In = as.Date(Clot$Date.Booked.In, format="%d/%m/%Y")
+Clot = Clot %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+```
+
+Split off APTT:
+
+```{r}
+ClotAPTT = Clot %>% select(ID,date,APTT)
+ClotAPTT = ClotAPTT %>% 
+  rename(
+    APTT_val = APTT,
+  )
+```
+
+Split off PT:
+
+```{r}
+ClotPT = Clot %>% select(ID,date,PT)
+ClotPT = ClotPT %>% 
+  rename(
+    PT_val = PT,
+  )
+```
+
+#### Antigen 
+
+```{r}
+Antigen <- read.csv(file("Antigen.csv"))
+Antigen = Antigen %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### BC
+
+```{r}
+BC <- read.csv(file("BC.csv"))
+BC['Measure']='BC'
+BC$Date.of.Specimen = as.Date(BC$Date.of.Specimen, format="%d/%m/%Y")
+BC = BC %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### Resp
+
+```{r}
+Resp <- read.csv(file("Resp.csv"))
+Resp['Measure']='Resp'
+Resp$Date.of.Specimen = as.Date(Resp$Date.of.Specimen, format="%d/%m/%Y")
+Resp = Resp %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### Urine
+
+```{r}
+Urine <- read.csv(file("Urine.csv"))
+Urine['Measure']='Urine'
+Urine$Date.of.Specimen = as.Date(Urine$Date.of.Specimen, format="%d/%m/%Y")
+Urine = Urine %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### poctLAC - Point of Care Testing - Lactate
+
+```{r}
+poctLAC <- read.csv(file("poctLAC.csv"))
+#Format date
+poctLAC$Date.of.Specimen = as.Date(poctLAC$Date.of.Specimen, format="%d/%m/%Y")
+poctLAC = poctLAC %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+poctLAC = poctLAC %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+poctLAC = poctLAC %>%
+  rename(
+    poctLAC_val = Numeric.Result
+  )
+#Combine date and time
+poctLAC$dateTime = as.POSIXct(paste(poctLAC$date, poctLAC$time), format="%Y-%m-%d %H:%M:%S")
+# Select relevant variables
+```
+
+#### poctO2 - Point of Care Testing - O2 and CO2
+Made up of:
+* O2
+* CO2
+
+```{r}
+poctO2 <- read.csv(file("poctO2.csv"))
+```
+
+O2:
+
+```{r}
+O2 <- poctO2 %>%
+  filter(Test.Desc == "Arterial pO2")
+O2$Date.of.Specimen = as.Date(O2$Date.of.Specimen, format="%d/%m/%Y")
+O2 = O2 %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+O2 = O2 %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+O2 = O2 %>% 
+  rename(
+    O2_val = Numeric.Result,
+  )
+#Combine date and time
+O2$dateTime = as.POSIXct(paste(O2$date, O2$time), format="%Y-%m-%d %H:%M:%S")
+```
+
+CO2:
+
+```{r}
+CO2 <- poctO2 %>%
+  filter(Test.Desc == "Arterial pCO2")
+#Format date
+CO2$Date.of.Specimen = as.Date(CO2$Date.of.Specimen, format="%d/%m/%Y")
+CO2 = CO2 %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+CO2 = CO2 %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+CO2 = CO2 %>% 
+  rename(
+    CO2_val = Numeric.Result,
+  )
+#Combine date and time
+CO2$dateTime = as.POSIXct(paste(CO2$date, CO2$time), format="%Y-%m-%d %H:%M:%S")
+```
+
+#### poctpH - Point of Care Testing - pH
+
+```{r}
+poctpH <- read.csv(file("poctpH.csv"))
+#Format date
+poctpH$Date.of.Specimen = as.Date(poctpH$Date...Time.of.Specimen, format="%d/%m/%Y")
+poctpH = poctpH %>% 
+  rename(
+    date = Date...Time.of.Specimen,
+  )
+poctpH = poctpH %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+poctpH = poctpH %>% 
+  rename(
+    poctpH_val = Numeric.Result,
+  )
+#Combine date and time
+poctpH$dateTime = as.POSIXct(paste(poctpH$date, poctpH$time), format="%Y-%m-%d %H:%M:%S")
+```
+
+## AvonCap
+
+```{r}
+AvonCap <- read.csv(file("AvonCap.csv"))
+AvonCap = AvonCap %>%
+    rename(
+        Community_Acquired_Pneumonia_radiologically_confirmed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...radiologically.confirmed.,
+        Community_Acquired_Pneumonia_clinically_confirmed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...clinically.confirmed..but.not.on.radiology..,
+        Community_Acquired_Pneumonia_no_radiology_performed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...no.radiology.performed.,
+        Acute_bronchitis = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Acute.bronchitis.,
+        Exacerbation_of_COPD = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Exacerbation.of.COPD.,
+        Empyema_lung_abscess = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Empyema.lung.abscess.,
+        LRTI_not_further_specified = Final.Standard.of.Care.LRTD.related.diagnosis..choice.LRTI...not.further.specified.,
+        Congestive_heart_failure = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Congestive.heart.failure.,
+        Non_infectious_process = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Non.infectious.process.,
+        Non_LRTD_infection_related_diagnosis = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Non.LRTD.infection.related.diagnosis.,
+        Other_LRTI_specified = Other.LRTI.Specified,
+        NYHA_Heart_failure = NYHA...Heart.Failure..nbsp.,
+        CRB65_Score = CRB65.Score,
+        NEWS2_Score = NEWS.2.Score,
+        Respiratory_Disease_None = Respiratory.Disease..choice.None.,
+        COPD = Respiratory.Disease..choice.COPD..Chronic.Obstructive.Pulmonary.Disease.Emphysema..,
+        Asthma = Respiratory.Disease..choice.Asthma.,
+        Bronchiectasis = Respiratory.Disease..choice.Bronchiectasis.,
+        Pulmonary_Fibrosis_Interstitial_Lung_Disease = Respiratory.Disease..choice.Pulmonary.Fibrosis.Interstitial.Lung.Disease.,
+        Respiratory_Disease_other = Respiratory.Disease..choice.Other.,
+        Chronic_heart_disease_none = Chronic.Heart.Disease..choice.None.,
+        Hypertension = Chronic.Heart.Disease..choice.Hypertension.,
+        Atrial_Fibrillation = Chronic.Heart.Disease..choice.Atrial.Fibrillation.,
+        Ischaemic_heart_disease = Chronic.Heart.Disease..choice.Ischaemic.heart.disease.,
+        Heart_failure = Chronic.Heart.Disease..choice.Heart.failure.CCF.,
+        Chronic_heart_disease_other = Chronic.Heart.Disease..choice.Other.,
+        Chronic_Kidney_Disease = Chronic.Kidney.Disease..CKD..Mod.Severe..eGFR..30..Cr.265.umol.L..dialysis..transplantation..uremic.syndrome,
+        Liver_disease = Liver.Disease.Mild...nbsp.cirrhosis.without.portal.HTN..chronic.hepatitis..Mod.Severe...nbsp.cirrhosis.with.portal.HTN.....variceal.bleeding,
+        Diabetes = Diabetes,
+        Cognitive_Impairment_Dementia_none = Cognitive.Impairment.Dementia..choice.None.,
+        Dementia = Cognitive.Impairment.Dementia..choice.Dementia.,
+        Cognitive_impairment = Cognitive.Impairment.Dementia..choice.Cognitive.Impairment.,
+        CVA_Stroke = Cognitive.Impairment.Dementia..choice.CVA..stroke..,
+        TIA_mini_stroke = Cognitive.Impairment.Dementia..choice.TIA..mini.stroke..,
+        Hemiplegiahemiplegia_or_paraplegia = Hemiplegiahemiplegia.or.paraplegia,
+        Peripheral_vascular_disease = Peripheral.Vascular.Disease.Intermittent.claudication..periph..arterial.bypass.for.insufficiency..gangrene..acute.arterial.insufficiency..untreated.aneurysm....6cm..nbsp.,
+        Immunosuppressive_medication = Immunosuppressive.Medication.includes.oral.steroids..biologics..chemotherapy.,
+        Immunodeficiency = Immunodeficiency.eg.SCID..hypogammaglobulinaemia..splenectomy.,
+        Connective_tissue_disease = Connective.Tissue.Disease..SLE..polymyositis..mixed.nbsp.Connective.Tissue.Disease..polymyalgia.rheumatica..moderate.to.severe.Rheumatoid.Arthritis.,
+        HIV_negative_or_not_tested = HIV.status..choice.Negative..no.HIV...or.not.tested.,
+        HIV_positive = HIV.status..choice.HIV.,
+        AIDS = HIV.status..choice.AIDS.,
+        Solid_organ_cancer_malignancy = Solid.Organ.Cancer.Malignancy.Initially.treated.in.the.last.5.years.exclude.non.melanomatous.skin.cancers.and.in.situ.cervical.carcinoma,
+        Haematological_malignancy_leukaemia_none = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.None.,
+        Leukaemia = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.Leukaemia.,
+        Lymphoma = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.Lymphoma.,
+        Organ_transplantation = Organ.Transplantation,
+        Pregnancy_post_partum = Pregnancy.Post.partum,
+        Gastric_Duodenal_Ulcer_disease = Gastric.Duodenal.Ulcer.Disease.Patients.who.have.required.treatment.for.PUD.nbsp.,
+        Rockwood_frailty_score = Rockwood.Frailty.Score,
+        Radiology_result = Radiology.Result
+    )
+```
+
+## Demographics Table
+Age and gender for every individual
+
+```{r}
+dem = Vir %>%
+  distinct(ID, .keep_all = TRUE)
+dem = dem %>%
+  select(ID,Gender,Age)
+```
+
+
+## Some discharge dates are missing where death date is present, need to replace NA with death date
+
+If discharge date ISNT present, and death date IS present, then make discharge date the death date. THEN, calculate length of stay from (discharge date - admission date). 
+
+```{r}
+
+totalOutcomes$dischargeDate[is.na(totalOutcomes$dischargeDate)] <- totalOutcomes$deathDate[is.na(totalOutcomes$dischargeDate)]
+```
+
+
+
+## Calculate length of stay
+
+```{r}
+totalOutcomes <- within(totalOutcomes, lengthOfStay <- dischargeDate - admissionDate)
+```
+
+### Remove negative lengths of stay
+
+```{r}
+totalOutcomes <- totalOutcomes[totalOutcomes$lengthOfStay >= 0,]
+```
+
+
+
+### Frequency plot length of stay
+
+```{r}
+ggplot(totalOutcomes, aes(lengthOfStay)) + 
+  geom_histogram(binwidth=1)
+```
+
+### Create age breaks and labels, then convert to factor
+
+```{r}
+agebreaks <- c(0,18,30,50,55,60,65,70,75,80,85,90,95,100,105)
+agelabels <- c("0-17","18-29","30-49","50-54","55-59","60-64","65-69","70-74","75-79","80-84","85-89","90-94","95-99","100-105")
+
+setDT(dem)[, agegroups := cut (Age,
+                               breaks = agebreaks,
+                               right = FALSE,
+                               labels = agelabels)]
+
+dem$Population <- 1 # Each respondent is one person
+
+dem$agegroups <- as.factor(dem$agegroups)
+
+dem$Population <- ifelse(dem$Gender == "M", -1*dem$Population, dem$Population)
+```
+
+### Min, median and mean length of stay
+```{r}
+print(min(totalOutcomes$lengthOfStay, na.rm=T))
+print(mean(totalOutcomes$lengthOfStay, na.rm=T))
+print(median(totalOutcomes$lengthOfStay, na.rm=T))
+```
+
+
+### Create stacked pyramid plot to stratify for age and gender
+
+```{r}
+ggplot(data = dem, aes(x = agegroups, y=Population, fill = Gender)) +
+  geom_bar(subset=(dem$Gender=="F"), stat="identity") +
+  geom_bar(subset=(dem$Gender=="M"), stat="identity") +
+  scale_y_continuous() + 
+  coord_flip()
+```
+
+### Demographics of those that have died
+
+- Find a subset of those that have died
+- Present graph
+
+```{r}
+# Those that have died
+deceasedSubset = subset(totalOutcomes, !is.na(totalOutcomes$deathDate))
+
+# Semi-join for those that have died in total outcomes with the demographics table
+deceasedDem = semi_join(dem, deceasedSubset, by = c("ID"="ID"))
+
+ggplot(data = deceasedDem, aes(x = agegroups, y=Population, fill = Gender)) +
+  scale_x_discrete(drop=FALSE) +
+  geom_bar(subset=(deceasedDem$Gender=="F"), stat="identity") +
+  geom_bar(subset=(deceasedDem$Gender=="M"), stat="identity") +
+  scale_y_continuous() + 
+  coord_flip()
+```
+
+### Find the demographics of those that went to ICU
+
+```{r}
+# Those that have died
+ICU_subset = subset(totalOutcomes, !is.na(totalOutcomes$ITU_Start))
+
+# Semi-join for those that have died in total outcomes with the demographics table
+ICU_dem = semi_join(dem, ICU_subset, by = c("ID"="ID"))
+
+ggplot(data = ICU_dem, aes(x = agegroups, y=Population, fill = Gender)) +
+  scale_x_discrete(drop=FALSE) +
+  geom_bar(subset=(ICU_dem$Gender=="F"), stat="identity") +
+  geom_bar(subset=(ICU_dem$Gender=="M"), stat="identity") +
+  scale_y_continuous() + 
+  coord_flip()
+```
+
+
+### Rescale tables, add "Measure" column so that it can act as a factor, and combine tables
+
+```{r}
+
+
+
+```
+
+### Merge tables
+
+```{r}
+#total <- rbind(BE,BNP,CRP,DDM,eGFR,FER,fib,Glucose,HB,ClotAPTT,ClotPT,CO2,O2,FBCLymph,FBCNeutr,FBCNLR,FBCWCC,HBA1c,poctpH,poctLAC,LDH,PCT,PLT,trig,trop)
+#total$Measure <- factor(total$Measure, levels = c("BNP","LDH","HBA1c","trig","trop","DDM","FER","PCT","fib","Glucose","PT","APTT","PLT","CRP","eGFR","poctLAC","poctpH","O2","CO2","WCC","Lymphocytes","Neutrophils","NLR","HB","BE"))
+```
+
+### Setting day of admission as day 0, and calculating days since admission
+
+```{r}
+total$firstBookedIn <- 0
+for (i in 1:nrow(total)){
+  total$firstBookedIn[i] <- (total$date[which(total$ID==total$ID[i])][1])
+}
+total$firstBookedIn <- as.Date(total$firstBookedIn,origin = "1970-01-01")
+total$Days = as.integer(total$date - total$firstBookedIn)
+
+
+
+```
+### Plotting the lab values of all patients on day of admission
+
+```{r}
+total_day1 <- subset(total, Days == 0)
+
+ggplot(total_day1, aes(x=Numeric.Result, y=Measure)) +
+  scale_y_discrete(guide = guide_axis(n.dodge=2), drop=FALSE) +
+  geom_boxplot() + 
+  coord_flip()
+```
+
+### Subsetting those lab values from covid positive date
+
+```{r}
+total_positiveDay <- semi_join(total,CovidCT, by = c("ID" = "ID", "date" = "date"))
+
+ggplot(total_positiveDay, aes(x=Numeric.Result, y=Measure)) +
+  scale_y_discrete(guide = guide_axis(n.dodge=2), drop=FALSE) +
+  geom_boxplot() + 
+  coord_flip()
+```
+
+```{r}
+total_ICU <- semi_join(total,subset(totalOutcomes,!is.na(totalOutcomes$ITU_Start)), by = c("ID" = "ID") )
+total_ICU <- subset(total_ICU, Days == 0)
+
+ggplot(total_ICU, aes(x=Numeric.Result, y=Measure)) +
+  scale_y_discrete(guide = guide_axis(n.dodge=2), drop=FALSE) +
+  geom_boxplot() + 
+  coord_flip()
+```
+### Variable boxplots
+For each:
+* Transform to ~ normal distribution
+* Rescale
+For each, show:
+* Results on day of admission
+* Results on day of positive test
+* Results on day of ICU admission
+* Display clinical thresholds alongside. 
+
+### BE
+
+```{r}
+# Store range of BE before rescale
+# Reference range is 22-29
+
+BE <- read.csv(file("BE.csv"))
+BE$Date.Booked.In = as.Date(BE$Date.Booked.In, format="%d/%m/%Y")
+BE = BE %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BE = BE %>%
+  rename(
+    BE_val = Numeric.Result
+  )
+
+BE_range = range(BE$BE_val, na.rm=TRUE)
+BE_bottom_ref = 22
+BE_top_ref = 29
+
+BE$BE_val <- Winsorize(BE$BE_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+BE$BE_val <- rescale(BE$BE_val, to=c(0,1), from = BE_range)
+BE_bottom_ref = rescale(BE_bottom_ref, to=c(0,1), from = BE_range)
+BE_top_ref = rescale(BE_top_ref, to=c(0,1), from = BE_range)
+
+BE = BE %>% select(ID,date,BE_val)
+BE_day1 <- semi_join(BE,total_day1, by = c("ID" = "ID", "date" = "date"))
+BE_positive <- semi_join(BE,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+BE_ICU <- semi_join(BE,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+BE$Label <- "All values"
+BE_day1$Label <- "Values on admission"
+BE_positive$Label <- "Values on COVID + day"
+BE_ICU$Label <- "Values for ICU patients"
+
+BE <- rbind(BE,BE_day1,BE_positive,BE_ICU)
+
+ggplot() +
+  ggtitle("BE distribution") +
+  labs(subtitle="Reference range = 22-29") + 
+  geom_boxplot(data = BE, aes(x=BE_val,y=Label)) + 
+  coord_flip() + 
+  geom_vline(xintercept=BE_bottom_ref,colour="red") +
+  geom_vline(xintercept=BE_top_ref,colour="red")
+```
+
+BNP has outliers and a positive skew - log transformation
+
+```{r}
+# Men under 70: <100pg/ml, Women under 70: <150 pg/ml, All 70yr and over: <300 pg/ml
+
+BNP <- read.csv(file("BNP.csv"))
+BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format="%d/%m/%Y")
+BNP = BNP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BNP = BNP %>%
+  rename(
+    BNP_val = Numeric.Result
+  )
+
+BNP$BNP_val <- log10(BNP$BNP_val)
+
+BNP_range = range(BNP$BNP_val, na.rm=TRUE)
+BNP_bottom_ref = log10(100)
+BNP_middle_ref = log10(150)
+BNP_top_ref = log10(300)
+
+BNP$BNP_val <- Winsorize(BNP$BNP_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+BNP$BNP_val <- rescale(BNP$BNP_val, to=c(0,1), from = BNP_range)
+BNP_bottom_ref = rescale(BNP_bottom_ref, to=c(0,1), from = BNP_range)
+BNP_middle_ref = rescale(BNP_middle_ref, to=c(0,1), from = BNP_range)
+BNP_top_ref = rescale(BNP_top_ref, to=c(0,1), from = BNP_range)
+
+BNP = BNP %>% select(ID,date,BNP_val)
+BNP_day1 <- semi_join(BNP,total_day1, by = c("ID" = "ID", "date" = "date"))
+BNP_positive <- semi_join(BNP,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+BNP_ICU <- semi_join(BNP,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+BNP$Label <- "All values"
+BNP_day1$Label <- "Values on admission"
+BNP_positive$Label <- "Values on COVID + day"
+BNP_ICU$Label <- "Values for ICU patients"
+
+BNP <- rbind(BNP,BNP_day1,BNP_positive,BNP_ICU)
+
+ggplot() +
+  ggtitle("BNP distribution") +
+  labs(subtitle="Men under 70: <100pg/ml, Women under 70: <150 pg/ml, All 70yr and over: <300 pg/ml") + 
+  geom_boxplot(data = BNP, aes(x=BNP_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=BNP_bottom_ref,colour="red") +
+  geom_vline(xintercept=BNP_middle_ref,colour="red") + 
+  geom_vline(xintercept=BNP_top_ref,colour="red") 
+
+
+```
+
+
+```{r}
+# CRP Reference range < 6mg/L
+
+CRP <- read.csv(file("CRP.csv"))
+CRP$Date.Booked.In = as.Date(CRP$Date.Booked.In, format="%d/%m/%Y")
+CRP = CRP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+CRP = CRP %>%
+  rename(
+    CRP_val = Numeric.Result
+  )
+
+CRP$CRP_val <- (CRP$CRP_val)^(1/3)
+
+CRP_range = range(CRP$CRP_val, na.rm=TRUE)
+CRP_bottom_ref = 6^(1/3)
+
+CRP$CRP_val <- Winsorize(CRP$CRP_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+CRP$CRP_val <- rescale(CRP$CRP_val, to=c(0,1), from = CRP_range)
+CRP_bottom_ref = rescale(CRP_bottom_ref, to=c(0,1), from = CRP_range)
+
+
+CRP = CRP %>% select(ID,date,CRP_val)
+CRP_day1 <- semi_join(CRP,total_day1, by = c("ID" = "ID", "date" = "date"))
+CRP_positive <- semi_join(CRP,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+CRP_ICU <- semi_join(CRP,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+CRP$Label <- "All values"
+CRP_day1$Label <- "Values on admission"
+CRP_positive$Label <- "Values on COVID + day"
+CRP_ICU$Label <- "Values for ICU patients"
+
+CRP <- rbind(CRP,CRP_day1,CRP_positive,CRP_ICU)
+
+ggplot() +
+  ggtitle("CRP distribution") +
+  labs(subtitle="Reference range = < 6 mg/L") + 
+  geom_boxplot(data = CRP, aes(x=CRP_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=CRP_bottom_ref,colour="red")
+
+```
+
+
+```{r}
+# Reference range (ng/ml) = Age < 60: <500, Age 61-70: <600, Age 71-80: <700, Age 81-90: <800, Age > 90: <900
+
+DDM <- read.csv(file("DDM.csv"))
+DDM$Date.Booked.In = as.Date(DDM$Date.Booked.In, format="%d/%m/%Y")
+DDM = DDM %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+DDM = DDM %>%
+  rename(
+    DDM_val = Numeric.Result
+  )
+
+DDM$DDM_val <- log10(DDM$DDM_val)
+
+DDM_range = range(DDM$DDM_val, na.rm=TRUE)
+DDM_ref_1 = log10(500)
+DDM_ref_2 = log10(600)
+DDM_ref_3 = log10(700)
+DDM_ref_4 = log10(800)
+DDM_ref_5 = log10(900)
+
+
+
+DDM$DDM_val <- Winsorize(DDM$DDM_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+DDM$DDM_val <- rescale(DDM$DDM_val, to=c(0,1), from = DDM_range)
+DDM_ref_1 = rescale(DDM_ref_1, to=c(0,1), from = DDM_range)
+DDM_ref_2 = rescale(DDM_ref_2, to=c(0,1), from = DDM_range)
+DDM_ref_3 = rescale(DDM_ref_3, to=c(0,1), from = DDM_range)
+DDM_ref_4 = rescale(DDM_ref_4, to=c(0,1), from = DDM_range)
+DDM_ref_5 = rescale(DDM_ref_5, to=c(0,1), from = DDM_range)
+
+
+DDM = DDM %>% select(ID,date,DDM_val)
+DDM_day1 <- semi_join(DDM,total_day1, by = c("ID" = "ID", "date" = "date"))
+DDM_positive <- semi_join(DDM,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+DDM_ICU <- semi_join(DDM,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+DDM$Label <- "All values"
+DDM_day1$Label <- "Values on admission"
+DDM_positive$Label <- "Values on COVID + day"
+DDM_ICU$Label <- "Values for ICU patients"
+
+DDM <- rbind(DDM,DDM_day1,DDM_positive,DDM_ICU)
+
+ggplot() +
+  ggtitle("DDM distribution") +
+  labs(subtitle="Men under 70: <100pg/ml, Women under 70: <150 pg/ml, All 70yr and over: <300 pg/ml") + 
+  geom_boxplot(data = DDM, aes(x=DDM_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=DDM_ref_1,colour="red") +
+  geom_vline(xintercept=DDM_ref_2,colour="red") +
+  geom_vline(xintercept=DDM_ref_3,colour="red") +
+  geom_vline(xintercept=DDM_ref_4,colour="red") +
+  geom_vline(xintercept=DDM_ref_5,colour="red") 
+
+```
+
+```{r}
+# Reference range =  >90 
+
+eGFR <- read.csv(file("eGFR.csv"))
+eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
+eGFR = eGFR %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+eGFR = eGFR %>%
+  rename(
+    eGFR_val = Numeric.Result
+  )
+
+eGFR_range = range(eGFR$eGFR_val, na.rm=TRUE)
+eGFR_ref = 90
+
+eGFR$eGFR_val <- Winsorize(eGFR$eGFR_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+eGFR$eGFR_val <- rescale(eGFR$eGFR_val, to=c(0,1), from = eGFR_range)
+eGFR_ref = rescale(eGFR_ref, to=c(0,1), from = eGFR_range)
+
+eGFR = eGFR %>% select(ID,date,eGFR_val)
+eGFR_day1 <- semi_join(eGFR,total_day1, by = c("ID" = "ID", "date" = "date"))
+eGFR_positive <- semi_join(eGFR,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+eGFR_ICU <- semi_join(eGFR,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+eGFR$Label <- "All values"
+eGFR_day1$Label <- "Values on admission"
+eGFR_positive$Label <- "Values on COVID + day"
+eGFR_ICU$Label <- "Values for ICU patients"
+
+eGFR <- rbind(eGFR,eGFR_day1,eGFR_positive,eGFR_ICU)
+
+ggplot() +
+  ggtitle("eGFR distribution") +
+  labs(subtitle="Reference range = >90") + 
+  geom_boxplot(data = eGFR, aes(x=eGFR_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=eGFR_ref,colour="red") 
+
+```
+
+
+```{r}
+FER$FER_val <- rescale(FER$FER_val)
+FER = FER %>% select(ID,date,FER_val)
+FER['Measure'] = 'FER'
+FER = FER %>%
+    rename ( 
+        Numeric.Result = FER_val
+    )
+
+```
+
+
+```{r}
+
+fib$fib_val <- rescale(fib$fib_val)
+fib = fib %>% select(ID,date,fib_val)
+fib['Measure'] = 'fib'
+fib = fib %>%
+    rename ( 
+        Numeric.Result = fib_val
+    )
+
+```
+
+
+```{r}
+
+Glucose$Glucose_val <- rescale(Glucose$Glucose_val)
+Glucose = Glucose %>% select(ID,date,Glucose_val)
+Glucose['Measure'] = 'Glucose'
+Glucose = Glucose %>%
+    rename ( 
+        Numeric.Result = Glucose_val
+    )
+
+```
+
+```{r}
+
+HB$HB_val <- rescale(HB$HB_val)
+HB = HB %>% select(ID,date,HB_val)
+HB['Measure'] = 'HB'
+HB = HB %>%
+    rename ( 
+        Numeric.Result = HB_val
+    )
+
+```
+
+
+```{r}
+
+ClotAPTT$APTT_val <- rescale(ClotAPTT$APTT_val)
+ClotAPTT = ClotAPTT %>% select(ID,date,APTT_val)
+ClotAPTT['Measure'] = 'APTT'
+ClotAPTT = ClotAPTT %>%
+    rename ( 
+        Numeric.Result = APTT_val
+    )
+
+```
+
+
+```{r}
+
+ClotPT$PT_val <- rescale(ClotPT$PT_val)
+ClotPT = ClotPT %>% select(ID,date,PT_val)
+ClotPT['Measure'] = 'PT'
+ClotPT = ClotPT %>%
+    rename ( 
+        Numeric.Result = PT_val
+    )
+
+```
+
+
+```{r}
+
+CO2$CO2_val <- rescale(CO2$CO2_val)
+CO2 = CO2 %>% select(ID,date,CO2_val)
+CO2['Measure'] = 'CO2'
+CO2 = CO2 %>%
+    rename ( 
+        Numeric.Result = CO2_val
+    )
+
+```
+
+```{r}
+
+O2$O2_val <- rescale(O2$O2_val)
+O2 = O2 %>% select(ID,date,O2_val)
+O2['Measure'] = 'O2'
+O2 = O2 %>%
+    rename ( 
+        Numeric.Result = O2_val
+    )
+
+```
+
+```{r}
+
+FBCLymph$Lymphocytes <- rescale(FBCLymph$Lymphocytes)
+FBCLymph = FBCLymph %>% select(ID,date,Lymphocytes)
+FBCLymph['Measure'] = 'Lymphocytes'
+FBCLymph = FBCLymph %>%
+    rename ( 
+        Numeric.Result = Lymphocytes
+    )
+
+```
+
+
+```{r}
+
+FBCNeutr$Neutrophils <- rescale(FBCNeutr$Neutrophils)
+FBCNeutr = FBCNeutr %>% select(ID,date,Neutrophils)
+FBCNeutr['Measure'] = 'Neutrophils'
+FBCNeutr = FBCNeutr %>%
+    rename ( 
+        Numeric.Result = Neutrophils
+    )
+
+```
+
+```{r}
+
+FBCNLR$NLR_val <- rescale(FBCNLR$NLR_val)
+FBCNLR = FBCNLR %>% select(ID,date,NLR_val)
+FBCNLR['Measure'] = 'NLR'
+FBCNLR = FBCNLR %>%
+    rename ( 
+        Numeric.Result = NLR_val
+    )
+
+```
+
+```{r}
+
+FBCWCC$WCC <- rescale(FBCWCC$WCC)
+FBCWCC = FBCWCC %>% select(ID,date,WCC)
+FBCWCC['Measure'] = 'WCC'
+FBCWCC = FBCWCC %>%
+    rename ( 
+        Numeric.Result = WCC
+    )
+
+```
+
+```{r}
+
+HBA1c$HBA1c_val <- rescale(HBA1c$HBA1c_val)
+HBA1c = HBA1c %>% select(ID,date,HBA1c_val)
+HBA1c['Measure'] = 'HBA1c'
+HBA1c = HBA1c %>%
+    rename ( 
+        Numeric.Result = HBA1c_val
+    )
+
+```
+
+```{r}
+
+poctpH$poctpH_val <- rescale(poctpH$poctpH_val)
+poctpH = poctpH %>% select(ID,date,poctpH_val)
+poctpH['Measure'] = 'poctpH'
+poctpH$date = as.Date(poctpH$date, format="%d/%m/%Y")
+poctpH = poctpH %>%
+    rename ( 
+        Numeric.Result = poctpH_val
+    )
+
+```
+
+```{r}
+
+
+poctLAC$poctLAC_val <- rescale(poctLAC$poctLAC_val)
+poctLAC = poctLAC %>% select(ID,date,poctLAC_val)
+poctLAC['Measure'] = 'poctLAC'
+poctLAC = poctLAC %>%
+    rename ( 
+        Numeric.Result = poctLAC_val
+    )
+
+```
+
+```{r}
+
+LDH$LDH_val <- rescale(LDH$LDH_val)
+LDH = LDH %>% select(ID,date,LDH_val)
+LDH['Measure'] = 'LDH'
+LDH = LDH %>%
+    rename ( 
+        Numeric.Result = LDH_val
+    )
+
+```
+
+```{r}
+
+PCT$PCT_val <- rescale(PCT$PCT_val)
+PCT = PCT %>% select(ID,date,PCT_val)
+PCT['Measure'] = 'PCT'
+PCT = PCT %>%
+    rename ( 
+        Numeric.Result = PCT_val
+    )
+
+```
+
+```{r}
+
+PLT$PLT_val <- rescale(PLT$PLT_val)
+PLT = PLT %>% select(ID,date,PLT_val)
+PLT['Measure'] = 'PLT'
+PLT = PLT %>%
+    rename ( 
+        Numeric.Result = PLT_val
+    )
+
+```
+
+
+```{r}
+
+trig$trig_val <- rescale(trig$trig_val)
+trig = trig %>% select(ID,date,trig_val)
+trig['Measure'] = 'trig'
+trig = trig %>%
+    rename ( 
+        Numeric.Result = trig_val
+    )
+
+```
+
+
+```{r}
+
+trop$trop_val <- rescale(trop$trop_val)
+trop = trop %>% select(ID,date,trop_val)
+trop['Measure'] = 'trop'
+trop = trop %>%
+    rename ( 
+        Numeric.Result = trop_val
+    )
+```
+
