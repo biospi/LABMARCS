@@ -876,6 +876,7 @@ total$Days = as.integer(total$date - total$firstBookedIn)
 
 ```{r}
 total_day1 <- subset(total, Days == 0)
+total_day1$date <- as.Date(total_day1$date, format="%d/%m/%Y")
 
 ggplot(total_day1, aes(x=Numeric.Result, y=Measure)) +
   scale_y_discrete(guide = guide_axis(n.dodge=2), drop=FALSE) +
@@ -1129,6 +1130,7 @@ ggplot() +
 
 ```{r}
 # Reference range =  >90 
+# NEED TO ADD VALUES "more than 90" - refer to excel document
 
 eGFR <- read.csv(file("eGFR.csv"))
 eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
@@ -1173,250 +1175,1109 @@ ggplot() +
 
 
 ```{r}
-FER$FER_val <- rescale(FER$FER_val)
-FER = FER %>% select(ID,date,FER_val)
-FER['Measure'] = 'FER'
+# Reference range Male: 33-490, Female(0-44): 15-445, Female(45+yrs): 30-470
+
+
+FER <- read.csv(file("FER.csv"))
+FER$Date.Booked.In = as.Date(FER$Date.Booked.In, format="%d/%m/%Y")
+FER = FER %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 FER = FER %>%
-    rename ( 
-        Numeric.Result = FER_val
-    )
+  rename(
+    FER_val = Numeric.Result
+  )
+
+FER$FER_val <- log10(FER$FER_val)
+
+FER_range = range(FER$FER_val, na.rm=TRUE)
+FER_ref_1 = log10(15)
+FER_ref_2 = log10(35)
+FER_ref_3 = log10(445)
+FER_ref_4 = log10(470)
+FER_ref_5 = log10(490)
+
+
+FER$FER_val <- Winsorize(FER$FER_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+FER$FER_val <- rescale(FER$FER_val, to=c(0,1), from = FER_range)
+FER_ref_1 = rescale(FER_ref_1, to=c(0,1), from = FER_range)
+FER_ref_2 = rescale(FER_ref_2, to=c(0,1), from = FER_range)
+FER_ref_3 = rescale(FER_ref_3, to=c(0,1), from = FER_range)
+FER_ref_4 = rescale(FER_ref_4, to=c(0,1), from = FER_range)
+FER_ref_5 = rescale(FER_ref_5, to=c(0,1), from = FER_range)
+
+
+FER = FER %>% select(ID,date,FER_val)
+FER_day1 <- semi_join(FER,total_day1, by = c("ID" = "ID", "date" = "date"))
+FER_positive <- semi_join(FER,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+FER_ICU <- semi_join(FER,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+FER$Label <- "All values"
+FER_day1$Label <- "Values on admission"
+FER_positive$Label <- "Values on COVID + day"
+FER_ICU$Label <- "Values for ICU patients"
+
+FER <- rbind(FER,FER_day1,FER_positive,FER_ICU)
+
+ggplot() +
+  ggtitle("FER distribution") +
+  labs(subtitle="Reference range Male: 33-490, Female(0-44): 15-445, Female(45+yrs): 30-470") + 
+  geom_boxplot(data = FER, aes(x=FER_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=FER_ref_1,colour="green") +
+  geom_vline(xintercept=FER_ref_2,colour="blue") +
+  geom_vline(xintercept=FER_ref_3,colour="green") +
+  geom_vline(xintercept=FER_ref_4,colour="red") +
+  geom_vline(xintercept=FER_ref_5,colour="blue") 
 
 ```
 
 
 ```{r}
 
-fib$fib_val <- rescale(fib$fib_val)
-fib = fib %>% select(ID,date,fib_val)
-fib['Measure'] = 'fib'
+# Reference range = 1.8-4.0 g/L
+
+fib <- read.csv(file("fib.csv"))
+fib$Date.Booked.In = as.Date(fib$Date.Booked.In, format="%d/%m/%Y")
+fib = fib %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 fib = fib %>%
-    rename ( 
-        Numeric.Result = fib_val
-    )
+  rename(
+    fib_val = Numeric.Result
+  )
+
+fib_range = range(fib$fib_val, na.rm=TRUE)
+fib_bottom_ref = 1.8
+fib_top_ref = 4
+
+fib$fib_val <- Winsorize(fib$fib_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+fib$fib_val <- rescale(fib$fib_val, to=c(0,1), from = fib_range)
+fib_bottom_ref = rescale(fib_bottom_ref, to=c(0,1), from = fib_range)
+fib_top_ref = rescale(fib_top_ref, to=c(0,1), from = fib_range)
+
+fib = fib %>% select(ID,date,fib_val)
+fib_day1 <- semi_join(fib,total_day1, by = c("ID" = "ID", "date" = "date"))
+fib_positive <- semi_join(fib,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+fib_ICU <- semi_join(fib,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+fib$Label <- "All values"
+fib_day1$Label <- "Values on admission"
+fib_positive$Label <- "Values on COVID + day"
+fib_ICU$Label <- "Values for ICU patients"
+
+fib <- rbind(fib,fib_day1,fib_positive,fib_ICU)
+
+ggplot() +
+  ggtitle("fib distribution") +
+  labs(subtitle="Reference range = 1.8-4.0 g/L") + 
+  geom_boxplot(data = fib, aes(x=fib_val,y=Label)) + 
+  coord_flip() + 
+  geom_vline(xintercept=fib_bottom_ref,colour="red") +
+  geom_vline(xintercept=fib_top_ref,colour="red")
 
 ```
 
 
 ```{r}
+# Reference range = Fasting: 3.0-6.0 mmol/L, Non-fasting: 3.0-7.8 mmol/L
 
-Glucose$Glucose_val <- rescale(Glucose$Glucose_val)
-Glucose = Glucose %>% select(ID,date,Glucose_val)
-Glucose['Measure'] = 'Glucose'
+Glucose <- read.csv(file("Glucose.csv"))
+Glucose$Date.Booked.In = as.Date(Glucose$Date.Booked.In, format="%d/%m/%Y")
+Glucose = Glucose %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 Glucose = Glucose %>%
-    rename ( 
-        Numeric.Result = Glucose_val
-    )
+  rename(
+    Glucose_val = Numeric.Result
+  )
+
+Glucose$Glucose_val <- log10(Glucose$Glucose_val)
+
+Glucose_range = range(Glucose$Glucose_val, na.rm=TRUE)
+Glucose_bottom_ref = log10(3)
+Glucose_middle_ref = log10(6)
+Glucose_top_ref = log10(7.8)
+
+Glucose$Glucose_val <- Winsorize(Glucose$Glucose_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+Glucose$Glucose_val <- rescale(Glucose$Glucose_val, to=c(0,1), from = Glucose_range)
+Glucose_bottom_ref = rescale(Glucose_bottom_ref, to=c(0,1), from = Glucose_range)
+Glucose_middle_ref = rescale(Glucose_middle_ref, to=c(0,1), from = Glucose_range)
+Glucose_top_ref = rescale(Glucose_top_ref, to=c(0,1), from = Glucose_range)
+
+Glucose = Glucose %>% select(ID,date,Glucose_val)
+Glucose_day1 <- semi_join(Glucose,total_day1, by = c("ID" = "ID", "date" = "date"))
+Glucose_positive <- semi_join(Glucose,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+Glucose_ICU <- semi_join(Glucose,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+Glucose$Label <- "All values"
+Glucose_day1$Label <- "Values on admission"
+Glucose_positive$Label <- "Values on COVID + day"
+Glucose_ICU$Label <- "Values for ICU patients"
+
+Glucose <- rbind(Glucose,Glucose_day1,Glucose_positive,Glucose_ICU)
+
+ggplot() +
+  ggtitle("Glucose distribution") +
+  labs(subtitle="Reference range = Fasting: 3.0-6.0 mmol/L, Non-fasting: 3.0-7.8 mmol/L") + 
+  geom_boxplot(data = Glucose, aes(x=Glucose_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=Glucose_bottom_ref,colour="red") +
+  geom_vline(xintercept=Glucose_middle_ref,colour="red") + 
+  geom_vline(xintercept=Glucose_top_ref,colour="red") 
 
 ```
 
 ```{r}
+# Reference range = Male 130-170 g/L, Female 120-150 g/L
 
-HB$HB_val <- rescale(HB$HB_val)
-HB = HB %>% select(ID,date,HB_val)
-HB['Measure'] = 'HB'
+HB <- read.csv(file("HB.csv"))
+HB$Date.Booked.In = as.Date(HB$Date.Booked.In, format="%d/%m/%Y")
+HB = HB %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 HB = HB %>%
-    rename ( 
-        Numeric.Result = HB_val
-    )
+  rename(
+    HB_val = Numeric.Result
+  )
+
+
+HB_range = range(HB$HB_val, na.rm=TRUE)
+HB_ref_1 = (120)
+HB_ref_2 = (130)
+HB_ref_3 = (150)
+HB_ref_4 = (170)
+
+
+HB$HB_val <- Winsorize(HB$HB_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+HB$HB_val <- rescale(HB$HB_val, to=c(0,1), from = HB_range)
+HB_ref_1 = rescale(HB_ref_1, to=c(0,1), from = HB_range)
+HB_ref_2 = rescale(HB_ref_2, to=c(0,1), from = HB_range)
+HB_ref_3 = rescale(HB_ref_3, to=c(0,1), from = HB_range)
+HB_ref_4 = rescale(HB_ref_4, to=c(0,1), from = HB_range)
+
+
+HB = HB %>% select(ID,date,HB_val)
+HB_day1 <- semi_join(HB,total_day1, by = c("ID" = "ID", "date" = "date"))
+HB_positive <- semi_join(HB,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+HB_ICU <- semi_join(HB,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+HB$Label <- "All values"
+HB_day1$Label <- "Values on admission"
+HB_positive$Label <- "Values on COVID + day"
+HB_ICU$Label <- "Values for ICU patients"
+
+HB <- rbind(HB,HB_day1,HB_positive,HB_ICU)
+
+ggplot() +
+  ggtitle("HB distribution") +
+  labs(subtitle="Reference range = Male 130-170 g/L, Female 120-150 g/L") + 
+  geom_boxplot(data = HB, aes(x=HB_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=HB_ref_1,colour="blue") +
+  geom_vline(xintercept=HB_ref_2,colour="green") +
+  geom_vline(xintercept=HB_ref_3,colour="blue") +
+  geom_vline(xintercept=HB_ref_4,colour="green") 
 
 ```
 
 
 ```{r}
+# Reference range = 21-33 seconds
 
-ClotAPTT$APTT_val <- rescale(ClotAPTT$APTT_val)
+Clot <- read.csv(file("Clot.csv"))
+Clot$Date.Booked.In = as.Date(Clot$Date.Booked.In, format="%d/%m/%Y")
+Clot = Clot %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+
+ClotAPTT = Clot %>% select(ID,date,APTT)
+ClotAPTT = ClotAPTT %>% 
+  rename(
+    APTT_val = APTT,
+  )
+
+ClotAPTT$APTT_val <- log10(ClotAPTT$APTT_val)
+
+ClotAPTT_range = range(ClotAPTT$APTT_val, na.rm=TRUE)
+ClotAPTT_ref_1 = log10(21)
+ClotAPTT_ref_2 = log10(33)
+
+
+ClotAPTT$APTT_val <- Winsorize(ClotAPTT$APTT_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+ClotAPTT$APTT_val <- rescale(ClotAPTT$APTT_val, to=c(0,1), from = ClotAPTT_range)
+ClotAPTT_ref_1 = rescale(ClotAPTT_ref_1, to=c(0,1), from = ClotAPTT_range)
+ClotAPTT_ref_2 = rescale(ClotAPTT_ref_2, to=c(0,1), from = ClotAPTT_range)
+
+
+
 ClotAPTT = ClotAPTT %>% select(ID,date,APTT_val)
-ClotAPTT['Measure'] = 'APTT'
-ClotAPTT = ClotAPTT %>%
-    rename ( 
-        Numeric.Result = APTT_val
-    )
+ClotAPTT_day1 <- semi_join(ClotAPTT,total_day1, by = c("ID" = "ID", "date" = "date"))
+ClotAPTT_positive <- semi_join(ClotAPTT,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+ClotAPTT_ICU <- semi_join(ClotAPTT,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+ClotAPTT$Label <- "All values"
+ClotAPTT_day1$Label <- "Values on admission"
+ClotAPTT_positive$Label <- "Values on COVID + day"
+ClotAPTT_ICU$Label <- "Values for ICU patients"
+
+ClotAPTT <- rbind(ClotAPTT,ClotAPTT_day1,ClotAPTT_positive,ClotAPTT_ICU)
+
+ggplot() +
+  ggtitle("ClotAPTT distribution") +
+  labs(subtitle="Reference range = 21-33 seconds") + 
+  geom_boxplot(data = ClotAPTT, aes(x=APTT_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=ClotAPTT_ref_1,colour="red") +
+  geom_vline(xintercept=ClotAPTT_ref_2,colour="red") 
 
 ```
 
 
 ```{r}
+# Reference range = 9.5-13 seconds
 
-ClotPT$PT_val <- rescale(ClotPT$PT_val)
+Clot <- read.csv(file("Clot.csv"))
+Clot$Date.Booked.In = as.Date(Clot$Date.Booked.In, format="%d/%m/%Y")
+Clot = Clot %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+
+ClotPT = Clot %>% select(ID,date,PT)
+ClotPT = ClotPT %>% 
+  rename(
+    PT_val = PT,
+  )
+
+ClotPT$PT_val <- log10(ClotPT$PT_val)
+
+ClotPT_range = range(ClotPT$PT_val, na.rm=TRUE)
+ClotPT_ref_1 = log10(9.5)
+ClotPT_ref_2 = log10(13)
+
+
+ClotPT$PT_val <- Winsorize(ClotPT$PT_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+ClotPT$PT_val <- rescale(ClotPT$PT_val, to=c(0,1), from = ClotPT_range)
+ClotPT_ref_1 = rescale(ClotPT_ref_1, to=c(0,1), from = ClotPT_range)
+ClotPT_ref_2 = rescale(ClotPT_ref_2, to=c(0,1), from = ClotPT_range)
+
+
+
 ClotPT = ClotPT %>% select(ID,date,PT_val)
-ClotPT['Measure'] = 'PT'
-ClotPT = ClotPT %>%
-    rename ( 
-        Numeric.Result = PT_val
-    )
+ClotPT_day1 <- semi_join(ClotPT,total_day1, by = c("ID" = "ID", "date" = "date"))
+ClotPT_positive <- semi_join(ClotPT,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+ClotPT_ICU <- semi_join(ClotPT,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+ClotPT$Label <- "All values"
+ClotPT_day1$Label <- "Values on admission"
+ClotPT_positive$Label <- "Values on COVID + day"
+ClotPT_ICU$Label <- "Values for ICU patients"
+
+ClotPT <- rbind(ClotPT,ClotPT_day1,ClotPT_positive,ClotPT_ICU)
+
+ggplot() +
+  ggtitle("ClotPT distribution") +
+  labs(subtitle="Reference range = 9.5-13 seconds") + 
+  geom_boxplot(data = ClotPT, aes(x=PT_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=ClotPT_ref_1,colour="red") +
+  geom_vline(xintercept=ClotPT_ref_2,colour="red") 
 
 ```
 
 
 ```{r}
+# Reference range = 4.6-6.4 seconds
 
-CO2$CO2_val <- rescale(CO2$CO2_val)
+poctO2 <- read.csv(file("poctO2.csv"))
+
+CO2 <- poctO2 %>%
+  filter(Test.Desc == "Arterial pCO2")
+#Format date
+CO2$Date.of.Specimen = as.Date(CO2$Date.of.Specimen, format="%d/%m/%Y")
+CO2 = CO2 %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+CO2 = CO2 %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+CO2 = CO2 %>% 
+  rename(
+    CO2_val = Numeric.Result,
+  )
+#Combine date and time
+CO2$dateTime = as.POSIXct(paste(CO2$date, CO2$time), format="%Y-%m-%d %H:%M:%S")
+
+CO2$CO2_val <- log10(CO2$CO2_val)
+
+CO2_range = range(CO2$CO2_val, na.rm=TRUE)
+CO2_ref_1 = log10(4.6)
+CO2_ref_2 = log10(6.4)
+
+
+CO2$CO2_val <- Winsorize(CO2$CO2_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+CO2$CO2_val <- rescale(CO2$CO2_val, to=c(0,1), from = CO2_range)
+CO2_ref_1 = rescale(CO2_ref_1, to=c(0,1), from = CO2_range)
+CO2_ref_2 = rescale(CO2_ref_2, to=c(0,1), from = CO2_range)
+
+
+
 CO2 = CO2 %>% select(ID,date,CO2_val)
-CO2['Measure'] = 'CO2'
-CO2 = CO2 %>%
-    rename ( 
-        Numeric.Result = CO2_val
-    )
+CO2_day1 <- semi_join(CO2,total_day1, by = c("ID" = "ID", "date" = "date"))
+CO2_positive <- semi_join(CO2,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+CO2_ICU <- semi_join(CO2,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+CO2$Label <- "All values"
+CO2_day1$Label <- "Values on admission"
+CO2_positive$Label <- "Values on COVID + day"
+CO2_ICU$Label <- "Values for ICU patients"
+
+CO2 <- rbind(CO2,CO2_day1,CO2_positive,CO2_ICU)
+
+ggplot() +
+  ggtitle("CO2 distribution") +
+  labs(subtitle="Reference range = 4.6-6.4 seconds") + 
+  geom_boxplot(data = CO2, aes(x=CO2_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=CO2_ref_1,colour="red") +
+  geom_vline(xintercept=CO2_ref_2,colour="red") 
+
 
 ```
 
 ```{r}
+# Reference range = 11.0-14.4 seconds
 
-O2$O2_val <- rescale(O2$O2_val)
+O2 <- poctO2 %>%
+  filter(Test.Desc == "Arterial pO2")
+O2$Date.of.Specimen = as.Date(O2$Date.of.Specimen, format="%d/%m/%Y")
+O2 = O2 %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+O2 = O2 %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+O2 = O2 %>% 
+  rename(
+    O2_val = Numeric.Result,
+  )
+#Combine date and time
+O2$dateTime = as.POSIXct(paste(O2$date, O2$time), format="%Y-%m-%d %H:%M:%S")
+
+O2$O2_val <- log10(O2$O2_val)
+
+O2_range = range(O2$O2_val, na.rm=TRUE)
+O2_ref_1 = log10(11)
+O2_ref_2 = log10(14.4)
+
+
+O2$O2_val <- Winsorize(O2$O2_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+O2$O2_val <- rescale(O2$O2_val, to=c(0,1), from = O2_range)
+O2_ref_1 = rescale(O2_ref_1, to=c(0,1), from = O2_range)
+O2_ref_2 = rescale(O2_ref_2, to=c(0,1), from = O2_range)
+
+
+
 O2 = O2 %>% select(ID,date,O2_val)
-O2['Measure'] = 'O2'
-O2 = O2 %>%
-    rename ( 
-        Numeric.Result = O2_val
-    )
+O2_day1 <- semi_join(O2,total_day1, by = c("ID" = "ID", "date" = "date"))
+O2_positive <- semi_join(O2,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+O2_ICU <- semi_join(O2,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+O2$Label <- "All values"
+O2_day1$Label <- "Values on admission"
+O2_positive$Label <- "Values on COVID + day"
+O2_ICU$Label <- "Values for ICU patients"
+
+O2 <- rbind(O2,O2_day1,O2_positive,O2_ICU)
+
+ggplot() +
+  ggtitle("O2 distribution") +
+  labs(subtitle="Reference range = 11.0-14.4 seconds") + 
+  geom_boxplot(data = O2, aes(x=O2_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=O2_ref_1,colour="red") +
+  geom_vline(xintercept=O2_ref_2,colour="red") 
+
+
 
 ```
 
 ```{r}
+# Reference range =  1.5-4.5 10^9/L
 
-FBCLymph$Lymphocytes <- rescale(FBCLymph$Lymphocytes)
+FBC <- read.csv(file("FBC.csv"))
+FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
+FBC = FBC %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+
+FBCLymph = FBC %>% select(ID,date,Result.Lymphocytes)
+FBCLymph = FBCLymph %>% 
+  rename(
+    Lymphocytes = Result.Lymphocytes,
+  )
+
+FBCLymph$Lymphocytes <- log10(FBCLymph$Lymphocytes)
+
+FBCLymph_range = range(FBCLymph$Lymphocytes, na.rm=TRUE)
+FBCLymph_ref_1 = log10(1.5)
+FBCLymph_ref_2 = log10(4.5)
+
+
+FBCLymph$Lymphocytes <- Winsorize(FBCLymph$Lymphocytes, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+FBCLymph$Lymphocytes <- rescale(FBCLymph$Lymphocytes, to=c(0,1), from = FBCLymph_range)
+FBCLymph_ref_1 = rescale(FBCLymph_ref_1, to=c(0,1), from = FBCLymph_range)
+FBCLymph_ref_2 = rescale(FBCLymph_ref_2, to=c(0,1), from = FBCLymph_range)
+
+
+
 FBCLymph = FBCLymph %>% select(ID,date,Lymphocytes)
-FBCLymph['Measure'] = 'Lymphocytes'
-FBCLymph = FBCLymph %>%
-    rename ( 
-        Numeric.Result = Lymphocytes
-    )
+FBCLymph_day1 <- semi_join(FBCLymph,total_day1, by = c("ID" = "ID", "date" = "date"))
+FBCLymph_positive <- semi_join(FBCLymph,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+FBCLymph_ICU <- semi_join(FBCLymph,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+FBCLymph$Label <- "All values"
+FBCLymph_day1$Label <- "Values on admission"
+FBCLymph_positive$Label <- "Values on COVID + day"
+FBCLymph_ICU$Label <- "Values for ICU patients"
+
+FBCLymph <- rbind(FBCLymph,FBCLymph_day1,FBCLymph_positive,FBCLymph_ICU)
+
+ggplot() +
+  ggtitle("FBC_Lymph distribution") +
+  labs(subtitle="Reference range =  1.5-4.5 10^9/L") + 
+  geom_boxplot(data = FBCLymph, aes(x=Lymphocytes, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=FBCLymph_ref_1,colour="red") +
+  geom_vline(xintercept=FBCLymph_ref_2,colour="red") 
+
 
 ```
 
 
 ```{r}
+# Reference range = 2.0-7.5 10^9/L
 
-FBCNeutr$Neutrophils <- rescale(FBCNeutr$Neutrophils)
+FBC <- read.csv(file("FBC.csv"))
+FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
+FBC = FBC %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+
+FBCNeutr = FBC %>% select(ID,date,Result.Neutrophils)
+FBCNeutr = FBCNeutr %>% 
+  rename(
+    Neutrophils = Result.Neutrophils,
+  )
+
+FBCNeutr$Neutrophils <- (FBCNeutr$Neutrophils)^(1/3)
+
+FBCNeutr_range = range(FBCNeutr$Neutrophils, na.rm=TRUE)
+FBCNeutr_ref_1 = (2)^(1/3)
+FBCNeutr_ref_2 = (7.5)^(1/3)
+
+
+FBCNeutr$Neutrophils <- Winsorize(FBCNeutr$Neutrophils, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+FBCNeutr$Neutrophils <- rescale(FBCNeutr$Neutrophils, to=c(0,1), from = FBCNeutr_range)
+FBCNeutr_ref_1 = rescale(FBCNeutr_ref_1, to=c(0,1), from = FBCNeutr_range)
+FBCNeutr_ref_2 = rescale(FBCNeutr_ref_2, to=c(0,1), from = FBCNeutr_range)
+
+
+
 FBCNeutr = FBCNeutr %>% select(ID,date,Neutrophils)
-FBCNeutr['Measure'] = 'Neutrophils'
-FBCNeutr = FBCNeutr %>%
-    rename ( 
-        Numeric.Result = Neutrophils
-    )
+FBCNeutr_day1 <- semi_join(FBCNeutr,total_day1, by = c("ID" = "ID", "date" = "date"))
+FBCNeutr_positive <- semi_join(FBCNeutr,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+FBCNeutr_ICU <- semi_join(FBCNeutr,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+FBCNeutr$Label <- "All values"
+FBCNeutr_day1$Label <- "Values on admission"
+FBCNeutr_positive$Label <- "Values on COVID + day"
+FBCNeutr_ICU$Label <- "Values for ICU patients"
+
+FBCNeutr <- rbind(FBCNeutr,FBCNeutr_day1,FBCNeutr_positive,FBCNeutr_ICU)
+
+ggplot() +
+  ggtitle("FBCNeutr distribution") +
+  labs(subtitle="Reference range = 2.0-7.5 10^9/L") + 
+  geom_boxplot(data = FBCNeutr, aes(x=Neutrophils, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=FBCNeutr_ref_1,colour="red") +
+  geom_vline(xintercept=FBCNeutr_ref_2,colour="red") 
 
 ```
 
 ```{r}
+# Reference range = 0.78 and 3.53
 
-FBCNLR$NLR_val <- rescale(FBCNLR$NLR_val)
+FBC <- read.csv(file("FBC.csv"))
+FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
+FBC = FBC %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+
+FBCNLR = FBC %>% select(ID,date,NLR)
+FBCNLR = FBCNLR %>% 
+  rename(
+    NLR_val = NLR,
+  )
+
+FBCNLR$NLR_val <- log10(FBCNLR$NLR_val)
+
+FBCNLR_range = range(FBCNLR$NLR_val, na.rm=TRUE)
+FBCNLR_ref_1 = log10(0.78)
+FBCNLR_ref_2 = log10(3.53)
+
+
+FBCNLR$NLR_val <- Winsorize(FBCNLR$NLR_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+FBCNLR$NLR_val <- rescale(FBCNLR$NLR_val, to=c(0,1), from = FBCNLR_range)
+FBCNLR_ref_1 = rescale(FBCNLR_ref_1, to=c(0,1), from = FBCNLR_range)
+FBCNLR_ref_2 = rescale(FBCNLR_ref_2, to=c(0,1), from = FBCNLR_range)
+
+
+
 FBCNLR = FBCNLR %>% select(ID,date,NLR_val)
-FBCNLR['Measure'] = 'NLR'
-FBCNLR = FBCNLR %>%
-    rename ( 
-        Numeric.Result = NLR_val
-    )
+FBCNLR_day1 <- semi_join(FBCNLR,total_day1, by = c("ID" = "ID", "date" = "date"))
+FBCNLR_positive <- semi_join(FBCNLR,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+FBCNLR_ICU <- semi_join(FBCNLR,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+FBCNLR$Label <- "All values"
+FBCNLR_day1$Label <- "Values on admission"
+FBCNLR_positive$Label <- "Values on COVID + day"
+FBCNLR_ICU$Label <- "Values for ICU patients"
+
+FBCNLR <- rbind(FBCNLR,FBCNLR_day1,FBCNLR_positive,FBCNLR_ICU)
+
+ggplot() +
+  ggtitle("FBCNLR distribution") +
+  labs(subtitle="Reference range = 0.78 and 3.53") + 
+  geom_boxplot(data = FBCNLR, aes(x=NLR_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=FBCNLR_ref_1,colour="red") +
+  geom_vline(xintercept=FBCNLR_ref_2,colour="red") 
 
 ```
 
 ```{r}
+# Reference range = 4.0-11.0 10^9/L
 
-FBCWCC$WCC <- rescale(FBCWCC$WCC)
+FBC <- read.csv(file("FBC.csv"))
+FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
+FBC = FBC %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+
+FBCWCC = FBC %>% select(ID,date,Result.WCC)
+FBCWCC = FBCWCC %>% 
+  rename(
+    WCC = Result.WCC,
+  )
+
+FBCWCC$WCC <- (FBCWCC$WCC)^(1/3)
+
+FBCWCC_range = range(FBCWCC$WCC, na.rm=TRUE)
+FBCWCC_ref_1 = (4)^(1/3)
+FBCWCC_ref_2 = (11)^(1/3)
+
+
+FBCWCC$WCC <- Winsorize(FBCWCC$WCC, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+FBCWCC$WCC <- rescale(FBCWCC$WCC, to=c(0,1), from = FBCWCC_range)
+FBCWCC_ref_1 = rescale(FBCWCC_ref_1, to=c(0,1), from = FBCWCC_range)
+FBCWCC_ref_2 = rescale(FBCWCC_ref_2, to=c(0,1), from = FBCWCC_range)
+
+
+
 FBCWCC = FBCWCC %>% select(ID,date,WCC)
-FBCWCC['Measure'] = 'WCC'
-FBCWCC = FBCWCC %>%
-    rename ( 
-        Numeric.Result = WCC
-    )
+FBCWCC_day1 <- semi_join(FBCWCC,total_day1, by = c("ID" = "ID", "date" = "date"))
+FBCWCC_positive <- semi_join(FBCWCC,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+FBCWCC_ICU <- semi_join(FBCWCC,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+FBCWCC$Label <- "All values"
+FBCWCC_day1$Label <- "Values on admission"
+FBCWCC_positive$Label <- "Values on COVID + day"
+FBCWCC_ICU$Label <- "Values for ICU patients"
+
+FBCWCC <- rbind(FBCWCC,FBCWCC_day1,FBCWCC_positive,FBCWCC_ICU)
+
+ggplot() +
+  ggtitle("FBCWCC distribution") +
+  labs(subtitle="Reference range = 4.0-11.0 10^9/L") + 
+  geom_boxplot(data = FBCWCC, aes(x=WCC, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=FBCWCC_ref_1,colour="red") +
+  geom_vline(xintercept=FBCWCC_ref_2,colour="red") 
 
 ```
 
 ```{r}
+# Reference range = >/= 48 mmol/mol probable diabetes, 42-48 mmol/mol increased risk
 
-HBA1c$HBA1c_val <- rescale(HBA1c$HBA1c_val)
-HBA1c = HBA1c %>% select(ID,date,HBA1c_val)
-HBA1c['Measure'] = 'HBA1c'
+HBA1c <- read.csv(file("HBA1c.csv"))
+HBA1c$Date.Booked.In = as.Date(HBA1c$Date.Booked.In, format="%d/%m/%Y")
+HBA1c = HBA1c %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 HBA1c = HBA1c %>%
-    rename ( 
-        Numeric.Result = HBA1c_val
-    )
+  rename(
+    HBA1c_val = Numeric.Result
+  )
+
+HBA1c$HBA1c_val <- (HBA1c$HBA1c_val)^(1/3)
+
+HBA1c_range = range(HBA1c$HBA1c_val, na.rm=TRUE)
+HBA1c_ref_1 = (42)^(1/3)
+HBA1c_ref_2 = (48)^(1/3)
+
+
+HBA1c$HBA1c_val <- Winsorize(HBA1c$HBA1c_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+HBA1c$HBA1c_val <- rescale(HBA1c$HBA1c_val, to=c(0,1), from = HBA1c_range)
+HBA1c_ref_1 = rescale(HBA1c_ref_1, to=c(0,1), from = HBA1c_range)
+HBA1c_ref_2 = rescale(HBA1c_ref_2, to=c(0,1), from = HBA1c_range)
+
+
+
+HBA1c = HBA1c %>% select(ID,date,HBA1c_val)
+HBA1c_day1 <- semi_join(HBA1c,total_day1, by = c("ID" = "ID", "date" = "date"))
+HBA1c_positive <- semi_join(HBA1c,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+
+
+HBA1c$Label <- "All values"
+HBA1c_day1$Label <- "Values on admission"
+HBA1c_positive$Label <- "Values on COVID + day"
+
+HBA1c <- rbind(HBA1c,HBA1c_day1,HBA1c_positive)
+
+ggplot() +
+  ggtitle("HBA1c distribution") +
+  labs(subtitle="Reference range = >/= 48 mmol/mol probable diabetes, 42-48 mmol/mol increased risk") + 
+  geom_boxplot(data = HBA1c, aes(x=HBA1c_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=HBA1c_ref_1,colour="red") +
+  geom_vline(xintercept=HBA1c_ref_2,colour="red") 
 
 ```
 
 ```{r}
+# Reference range = 7.35-7.45
 
-poctpH$poctpH_val <- rescale(poctpH$poctpH_val)
-poctpH = poctpH %>% select(ID,date,poctpH_val)
-poctpH['Measure'] = 'poctpH'
+poctpH <- read.csv(file("poctpH.csv"))
+#Format date
+poctpH$Date.of.Specimen = as.Date(poctpH$Date...Time.of.Specimen, format="%d/%m/%Y")
+poctpH = poctpH %>% 
+  rename(
+    date = Date...Time.of.Specimen,
+  )
 poctpH$date = as.Date(poctpH$date, format="%d/%m/%Y")
-poctpH = poctpH %>%
-    rename ( 
-        Numeric.Result = poctpH_val
-    )
+poctpH = poctpH %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+poctpH = poctpH %>% 
+  rename(
+    poctpH_val = Numeric.Result,
+  )
+#Combine date and time
+poctpH$dateTime = as.POSIXct(paste(poctpH$date, poctpH$time), format="%Y-%m-%d %H:%M:%S")
+
+
+poctpH_range = range(poctpH$poctpH_val, na.rm=TRUE)
+poctpH_ref_1 = (7.35)
+poctpH_ref_2 = (7.45)
+
+poctpH$poctpH_val <- Winsorize(poctpH$poctpH_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+poctpH$poctpH_val <- rescale(poctpH$poctpH_val, to=c(0,1), from = poctpH_range)
+poctpH_ref_1 = rescale(poctpH_ref_1, to=c(0,1), from = poctpH_range)
+poctpH_ref_2 = rescale(poctpH_ref_2, to=c(0,1), from = poctpH_range)
+
+
+
+poctpH = poctpH %>% select(ID,date,poctpH_val)
+poctpH_day1 <- semi_join(poctpH,total_day1, by = c("ID" = "ID", "date" = "date"))
+poctpH_positive <- semi_join(poctpH,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+poctpH_ICU <- semi_join(poctpH,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+poctpH$Label <- "All values"
+poctpH_day1$Label <- "Values on admission"
+poctpH_positive$Label <- "Values on COVID + day"
+poctpH_ICU$Label <- "Values for ICU patients"
+
+poctpH <- rbind(poctpH,poctpH_day1,poctpH_positive,poctpH_ICU)
+
+ggplot() +
+  ggtitle("poctpH distribution") +
+  labs(subtitle="Reference range = 7.35-7.45") + 
+  geom_boxplot(data = poctpH, aes(x=poctpH_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=poctpH_ref_1,colour="red") +
+  geom_vline(xintercept=poctpH_ref_2,colour="red") 
 
 ```
 
 ```{r}
+# Reference range = 0.5-2.2 mmol/L
 
-
-poctLAC$poctLAC_val <- rescale(poctLAC$poctLAC_val)
-poctLAC = poctLAC %>% select(ID,date,poctLAC_val)
-poctLAC['Measure'] = 'poctLAC'
+poctLAC <- read.csv(file("poctLAC.csv"))
+#Format date
+poctLAC$Date.of.Specimen = as.Date(poctLAC$Date.of.Specimen, format="%d/%m/%Y")
+poctLAC = poctLAC %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+poctLAC = poctLAC %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
 poctLAC = poctLAC %>%
-    rename ( 
-        Numeric.Result = poctLAC_val
-    )
+  rename(
+    poctLAC_val = Numeric.Result
+  )
+#Combine date and time
+poctLAC$dateTime = as.POSIXct(paste(poctLAC$date, poctLAC$time), format="%Y-%m-%d %H:%M:%S")
+
+poctLAC$poctLAC_val <- log10(poctLAC$poctLAC_val)
+
+poctLAC_range = range(poctLAC$poctLAC_val, na.rm=TRUE)
+poctLAC_ref_1 = log10(0.5)
+poctLAC_ref_2 = log10(2.2)
+
+
+poctLAC$poctLAC_val <- Winsorize(poctLAC$poctLAC_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+poctLAC$poctLAC_val <- rescale(poctLAC$poctLAC_val, to=c(0,1), from = poctLAC_range)
+poctLAC_ref_1 = rescale(poctLAC_ref_1, to=c(0,1), from = poctLAC_range)
+poctLAC_ref_2 = rescale(poctLAC_ref_2, to=c(0,1), from = poctLAC_range)
+
+
+
+poctLAC = poctLAC %>% select(ID,date,poctLAC_val)
+poctLAC_day1 <- semi_join(poctLAC,total_day1, by = c("ID" = "ID", "date" = "date"))
+poctLAC_positive <- semi_join(poctLAC,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+poctLAC_ICU <- semi_join(poctLAC,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+poctLAC$Label <- "All values"
+poctLAC_day1$Label <- "Values on admission"
+poctLAC_positive$Label <- "Values on COVID + day"
+poctLAC_ICU$Label <- "Values for ICU patients"
+
+poctLAC <- rbind(poctLAC,poctLAC_day1,poctLAC_positive, poctLAC_ICU)
+
+ggplot() +
+  ggtitle("poctLAC distribution") +
+  labs(subtitle="Reference range = 0.5-2.2 mmol/L") + 
+  geom_boxplot(data = poctLAC, aes(x=poctLAC_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=poctLAC_ref_1,colour="red") +
+  geom_vline(xintercept=poctLAC_ref_2,colour="red") 
 
 ```
 
 ```{r}
+# Reference range = 240-480 IU/L
 
-LDH$LDH_val <- rescale(LDH$LDH_val)
-LDH = LDH %>% select(ID,date,LDH_val)
-LDH['Measure'] = 'LDH'
+LDH <- read.csv(file("LDH.csv"))
+LDH$Date.Booked.In = as.Date(LDH$Date.Booked.In, format="%d/%m/%Y")
+LDH = LDH %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 LDH = LDH %>%
-    rename ( 
-        Numeric.Result = LDH_val
-    )
+  rename(
+    LDH_val = Numeric.Result
+  )
+
+LDH$LDH_val <- log10(LDH$LDH_val)
+
+LDH_range = range(LDH$LDH_val, na.rm=TRUE)
+LDH_ref_1 = log10(240)
+LDH_ref_2 = log10(480)
+
+
+LDH$LDH_val <- Winsorize(LDH$LDH_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+LDH$LDH_val <- rescale(LDH$LDH_val, to=c(0,1), from = LDH_range)
+LDH_ref_1 = rescale(LDH_ref_1, to=c(0,1), from = LDH_range)
+LDH_ref_2 = rescale(LDH_ref_2, to=c(0,1), from = LDH_range)
+
+
+
+LDH = LDH %>% select(ID,date,LDH_val)
+LDH_day1 <- semi_join(LDH,total_day1, by = c("ID" = "ID", "date" = "date"))
+LDH_positive <- semi_join(LDH,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+LDH_ICU <- semi_join(LDH,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+LDH$Label <- "All values"
+LDH_day1$Label <- "Values on admission"
+LDH_positive$Label <- "Values on COVID + day"
+LDH_ICU$Label <- "Values for ICU patients"
+
+LDH <- rbind(LDH,LDH_day1,LDH_positive, LDH_ICU)
+
+ggplot() +
+  ggtitle("LDH distribution") +
+  labs(subtitle="Reference range = 240-480 IU/L") + 
+  geom_boxplot(data = LDH, aes(x=LDH_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=LDH_ref_1,colour="red") +
+  geom_vline(xintercept=LDH_ref_2,colour="red") 
+
 
 ```
 
 ```{r}
+# Reference range = Normal range: <0.05ng/mL, <0.50ng/mL low risk of severe sepsis, >2.00ng/mL high risk severe sepsis
 
-PCT$PCT_val <- rescale(PCT$PCT_val)
-PCT = PCT %>% select(ID,date,PCT_val)
-PCT['Measure'] = 'PCT'
+PCT <- read.csv(file("PCT.csv"))
+PCT$Date.Booked.In = as.Date(PCT$Date.Booked.In, format="%d/%m/%Y")
+PCT = PCT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 PCT = PCT %>%
-    rename ( 
-        Numeric.Result = PCT_val
-    )
+  rename(
+    PCT_val = Numeric.Result
+  )
+
+
+PCT$PCT_val <- log10(PCT$PCT_val)
+
+PCT_range = range(PCT$PCT_val, na.rm=TRUE)
+PCT_ref_1 = log10(0.05)
+PCT_ref_2 = log10(0.5)
+PCT_ref_3 = log10(2)
+
+
+PCT$PCT_val <- Winsorize(PCT$PCT_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+PCT$PCT_val <- rescale(PCT$PCT_val, to=c(0,1), from = PCT_range)
+PCT_ref_1 = rescale(PCT_ref_1, to=c(0,1), from = PCT_range)
+PCT_ref_2 = rescale(PCT_ref_2, to=c(0,1), from = PCT_range)
+PCT_ref_3 = rescale(PCT_ref_2, to=c(0,1), from = PCT_range)
+
+
+
+PCT = PCT %>% select(ID,date,PCT_val)
+PCT_day1 <- semi_join(PCT,total_day1, by = c("ID" = "ID", "date" = "date"))
+PCT_positive <- semi_join(PCT,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+PCT_ICU <- semi_join(PCT,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+PCT$Label <- "All values"
+PCT_day1$Label <- "Values on admission"
+PCT_positive$Label <- "Values on COVID + day"
+PCT_ICU$Label <- "Values for ICU patients"
+
+PCT <- rbind(PCT,PCT_day1,PCT_positive,PCT_ICU)
+
+ggplot() +
+  ggtitle("PCT distribution") +
+  labs(subtitle="Reference range = Normal range: <0.05ng/mL, <0.50ng/mL low risk of severe sepsis, >2.00ng/mL high risk severe sepsis") + 
+  geom_boxplot(data = PCT, aes(x=PCT_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=PCT_ref_1,colour="red") +
+  geom_vline(xintercept=PCT_ref_2,colour="red") +
+  geom_vline(xintercept=PCT_ref_3,colour="red") 
 
 ```
 
 ```{r}
 
-PLT$PLT_val <- rescale(PLT$PLT_val)
-PLT = PLT %>% select(ID,date,PLT_val)
-PLT['Measure'] = 'PLT'
+# Reference range = 150-450 10^9/L
+
+PLT <- read.csv(file("PLT.csv"))
+PLT$Date.Booked.In = as.Date(PLT$Date.Booked.In, format="%d/%m/%Y")
+PLT = PLT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 PLT = PLT %>%
-    rename ( 
-        Numeric.Result = PLT_val
-    )
+  rename(
+    PLT_val = Numeric.Result
+  )
+
+PLT$PLT_val <- sqrt(PLT$PLT_val)
+
+PLT_range = range(PLT$PLT_val, na.rm=TRUE)
+PLT_ref_1 = sqrt(150)
+PLT_ref_2 = sqrt(450)
+
+
+PLT$PLT_val <- Winsorize(PLT$PLT_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+PLT$PLT_val <- rescale(PLT$PLT_val, to=c(0,1), from = PLT_range)
+PLT_ref_1 = rescale(PLT_ref_1, to=c(0,1), from = PLT_range)
+PLT_ref_2 = rescale(PLT_ref_2, to=c(0,1), from = PLT_range)
+
+
+
+PLT = PLT %>% select(ID,date,PLT_val)
+PLT_day1 <- semi_join(PLT,total_day1, by = c("ID" = "ID", "date" = "date"))
+PLT_positive <- semi_join(PLT,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+PLT_ICU <- semi_join(PLT,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+PLT$Label <- "All values"
+PLT_day1$Label <- "Values on admission"
+PLT_positive$Label <- "Values on COVID + day"
+PLT_ICU$Label <- "Values for ICU patients"
+
+PLT <- rbind(PLT,PLT_day1,PLT_positive, PLT_ICU)
+
+ggplot() +
+  ggtitle("PLT distribution") +
+  labs(subtitle="Reference range = 150-450 10^9/L") + 
+  geom_boxplot(data = PLT, aes(x=PLT_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=PLT_ref_1,colour="red") +
+  geom_vline(xintercept=PLT_ref_2,colour="red") 
 
 ```
 
 
 ```{r}
+# Reference range = 0.5-1.7
 
-trig$trig_val <- rescale(trig$trig_val)
-trig = trig %>% select(ID,date,trig_val)
-trig['Measure'] = 'trig'
+trig <- read.csv(file("trig.csv"))
+trig$Date.Booked.In = as.Date(trig$Date.Booked.In, format="%d/%m/%Y")
+trig = trig %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 trig = trig %>%
-    rename ( 
-        Numeric.Result = trig_val
-    )
+  rename(
+    trig_val = Numeric.Result
+  )
+
+trig$trig_val <- log10(trig$trig_val)
+
+trig_range = range(trig$trig_val, na.rm=TRUE)
+trig_ref_1 = log10(0.5)
+trig_ref_2 = log10(1.7)
+
+
+trig$trig_val <- Winsorize(trig$trig_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+trig$trig_val <- rescale(trig$trig_val, to=c(0,1), from = trig_range)
+trig_ref_1 = rescale(trig_ref_1, to=c(0,1), from = trig_range)
+trig_ref_2 = rescale(trig_ref_2, to=c(0,1), from = trig_range)
+
+
+
+trig = trig %>% select(ID,date,trig_val)
+trig_day1 <- semi_join(trig,total_day1, by = c("ID" = "ID", "date" = "date"))
+trig_positive <- semi_join(trig,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+trig_ICU <- semi_join(trig,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+trig$Label <- "All values"
+trig_day1$Label <- "Values on admission"
+trig_positive$Label <- "Values on COVID + day"
+trig_ICU$Label <- "Values for ICU patients"
+
+trig <- rbind(trig,trig_day1,trig_positive, trig_ICU)
+
+ggplot() +
+  ggtitle("trig distribution") +
+  labs(subtitle="Reference range = 0.5-1.7") + 
+  geom_boxplot(data = trig, aes(x=trig_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=trig_ref_1,colour="red") +
+  geom_vline(xintercept=trig_ref_2,colour="red") 
 
 ```
 
 
 ```{r}
+# Reference range = Normal: <14ng/L, Possible MI: 14-30 ng/L, Probable MI: >30 ng/L
 
-trop$trop_val <- rescale(trop$trop_val)
-trop = trop %>% select(ID,date,trop_val)
-trop['Measure'] = 'trop'
+trop <- read.csv(file("trop.csv"))
+trop$Date.Booked.In = as.Date(trop$Date.Booked.In, format="%d/%m/%Y")
+trop = trop %>% 
+  rename(
+    date = Date.Booked.In,
+  )
 trop = trop %>%
-    rename ( 
-        Numeric.Result = trop_val
-    )
+  rename(
+    trop_val = Numeric.Result
+  )
+
+trop$trop_val <- log10(trop$trop_val)
+
+trop_range = range(trop$trop_val, na.rm=TRUE)
+trop_ref_1 = log10(14)
+trop_ref_2 = log10(30)
+
+
+trop$trop_val <- Winsorize(trop$trop_val, minval = NULL, maxval = NULL,
+                             probs = c(0.01, 0.99), na.rm = TRUE, type = 7)
+
+trop$trop_val <- rescale(trop$trop_val, to=c(0,1), from = trop_range)
+trop_ref_1 = rescale(trop_ref_1, to=c(0,1), from = trop_range)
+trop_ref_2 = rescale(trop_ref_2, to=c(0,1), from = trop_range)
+
+
+
+trop = trop %>% select(ID,date,trop_val)
+trop_day1 <- semi_join(trop,total_day1, by = c("ID" = "ID", "date" = "date"))
+trop_positive <- semi_join(trop,total_positiveDay, by = c("ID" = "ID", "date" = "date"))
+trop_ICU <- semi_join(trop,total_ICU, by = c("ID" = "ID", "date" = "date"))
+
+trop$Label <- "All values"
+trop_day1$Label <- "Values on admission"
+trop_positive$Label <- "Values on COVID + day"
+trop_ICU$Label <- "Values for ICU patients"
+
+trop <- rbind(trop,trop_day1,trop_positive, trop_ICU)
+
+ggplot() +
+  ggtitle("trop distribution") +
+  labs(subtitle="Reference range = Normal: <14ng/L, Possible MI: 14-30 ng/L, Probable MI: >30 ng/L") + 
+  geom_boxplot(data = trop, aes(x=trop_val, y=Label)) + 
+  coord_flip() +
+  geom_vline(xintercept=trop_ref_1,colour="red") +
+  geom_vline(xintercept=trop_ref_2,colour="red") 
 ```
 
