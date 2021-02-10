@@ -124,7 +124,7 @@ WestonOutcomes2 = WestonOutcomes %>% select(ID,admissionDate,dischargeDate,ITU_S
 
 ```{r}
 # Merge outcomes data
-totalOutcomes <- rbind(UHB_outcomes12,UHB_outcomes22,NBT_outcomes2,WestonOutcomes2) # NBT Outcomes must be excluded as inconsistent
+totalOutcomes <- rbind(UHB_outcomes12,UHB_outcomes22,NBT_outcomes2,WestonOutcomes2)
 totalOutcomes$deathDate = as.Date(totalOutcomes$deathDate, format="%d/%m/%Y")
 totalOutcomes$ITU_Start = as.Date(totalOutcomes$ITU_Start, format="%d/%m/%Y")
 totalOutcomes$ITU_End = as.Date(totalOutcomes$ITU_End, format="%d/%m/%Y")
@@ -132,6 +132,7 @@ totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format="%d/%m
 ```
 
 ### Load variable data
+Data is loaded in from csv, and then all dates are renamed as well as the actual values for each variable, so that they have common column names for merging data together. 
 #### BE - Bicarbonate Excess
 
 ```{r}
@@ -668,6 +669,7 @@ poctpH$dateTime = as.POSIXct(paste(poctpH$date, poctpH$time), format="%Y-%m-%d %
 ```
 
 ## AvonCap
+Names of all of these comorbidities are verbose and confusing, so shortened to make easier to understand. 
 
 ```{r}
 AvonCap <- read.csv(file("AvonCap.csv"))
@@ -755,7 +757,8 @@ totalOutcomes$dischargeDate[is.na(totalOutcomes$dischargeDate)] <- totalOutcomes
 totalOutcomes <- within(totalOutcomes, lengthOfStay <- dischargeDate - admissionDate)
 ```
 
-### Remove negative lengths of stay
+### Only keep positive lengths of stay
+I think there are some issues with a handful of admission times, as they produce a negative length of stay. I've checked the original data and this issue lies with the original data source.
 
 ```{r}
 totalOutcomes <- totalOutcomes[totalOutcomes$lengthOfStay >= 0,]
@@ -767,14 +770,18 @@ totalOutcomes <- totalOutcomes[totalOutcomes$lengthOfStay >= 0,]
 
 ```{r}
 ggplot(totalOutcomes, aes(lengthOfStay)) + 
-  geom_histogram(binwidth=1)
+  geom_histogram(binwidth=1,boundary=0, color="black",fill="blue")
+```
+```{r}
+ggplot(data = totalOutcomes, aes(x = lengthOfStay)) + 
+  geom_histogram(aes(y=cumsum(..count..)),binwidth=1, boundary=0, color="black",fill="blue")
 ```
 
 ### Create age breaks and labels, then convert to factor
 
 ```{r}
-agebreaks <- c(0,18,30,50,55,60,65,70,75,80,85,90,95,100,105)
-agelabels <- c("0-17","18-29","30-49","50-54","55-59","60-64","65-69","70-74","75-79","80-84","85-89","90-94","95-99","100-105")
+agebreaks <- c(5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100,105)
+agelabels <- c("5-9","10-14","15-19","20-24","25-29","30-34","35-39","40,44","45-49","50-54","55-59","60-64","65-69","70-74","75-79","80-84","85-89","90-94","95-99","100-105")
 
 setDT(dem)[, agegroups := cut (Age,
                                breaks = agebreaks,
@@ -847,7 +854,207 @@ ggplot(data = ICU_dem, aes(x = agegroups, y=Population, fill = Gender)) +
 ### Rescale tables, add "Measure" column so that it can act as a factor, and combine tables
 
 ```{r}
+BE$BE_val <- rescale(BE$BE_val)
+BE = BE %>% select(ID,date,BE_val)
+BE['Measure'] = 'BE'
+BE = BE %>%
+    rename ( 
+        Numeric.Result = BE_val
+    )
 
+BNP$BNP_val <- rescale(BNP$BNP_val)
+BNP = BNP %>% select(ID,date,BNP_val)
+BNP['Measure'] = 'BNP'
+BNP = BNP %>%
+    rename ( 
+        Numeric.Result = BNP_val
+    )
+
+CRP$CRP_val <- rescale(CRP$CRP_val)
+CRP = CRP %>% select(ID,date,CRP_val)
+CRP['Measure'] = 'CRP'
+CRP = CRP %>%
+    rename ( 
+        Numeric.Result = CRP_val
+    )
+
+DDM$DDM_val <- rescale(DDM$DDM_val)
+DDM = DDM %>% select(ID,date,DDM_val)
+DDM['Measure'] = 'DDM'
+DDM = DDM %>%
+    rename ( 
+        Numeric.Result = DDM_val
+    )
+
+eGFR$eGFR_val <- rescale(eGFR$eGFR_val)
+eGFR = eGFR %>% select(ID,date,eGFR_val)
+eGFR['Measure'] = 'eGFR'
+eGFR = eGFR %>%
+    rename ( 
+        Numeric.Result = eGFR_val
+    )
+
+FER$FER_val <- rescale(FER$FER_val)
+FER = FER %>% select(ID,date,FER_val)
+FER['Measure'] = 'FER'
+FER = FER %>%
+    rename ( 
+        Numeric.Result = FER_val
+    )
+
+fib$fib_val <- rescale(fib$fib_val)
+fib = fib %>% select(ID,date,fib_val)
+fib['Measure'] = 'fib'
+fib = fib %>%
+    rename ( 
+        Numeric.Result = fib_val
+    )
+
+Glucose$Glucose_val <- rescale(Glucose$Glucose_val)
+Glucose = Glucose %>% select(ID,date,Glucose_val)
+Glucose['Measure'] = 'Glucose'
+Glucose = Glucose %>%
+    rename ( 
+        Numeric.Result = Glucose_val
+    )
+
+HB$HB_val <- rescale(HB$HB_val)
+HB = HB %>% select(ID,date,HB_val)
+HB['Measure'] = 'HB'
+HB = HB %>%
+    rename ( 
+        Numeric.Result = HB_val
+    )
+
+ClotAPTT$APTT_val <- rescale(ClotAPTT$APTT_val)
+ClotAPTT = ClotAPTT %>% select(ID,date,APTT_val)
+ClotAPTT['Measure'] = 'APTT'
+ClotAPTT = ClotAPTT %>%
+    rename ( 
+        Numeric.Result = APTT_val
+    )
+
+ClotPT$PT_val <- rescale(ClotPT$PT_val)
+ClotPT = ClotPT %>% select(ID,date,PT_val)
+ClotPT['Measure'] = 'PT'
+ClotPT = ClotPT %>%
+    rename ( 
+        Numeric.Result = PT_val
+    )
+
+CO2$CO2_val <- rescale(CO2$CO2_val)
+CO2 = CO2 %>% select(ID,date,CO2_val)
+CO2['Measure'] = 'CO2'
+CO2 = CO2 %>%
+    rename ( 
+        Numeric.Result = CO2_val
+    )
+
+O2$O2_val <- rescale(O2$O2_val)
+O2 = O2 %>% select(ID,date,O2_val)
+O2['Measure'] = 'O2'
+O2 = O2 %>%
+    rename ( 
+        Numeric.Result = O2_val
+    )
+
+FBCLymph$Lymphocytes <- rescale(FBCLymph$Lymphocytes)
+FBCLymph = FBCLymph %>% select(ID,date,Lymphocytes)
+FBCLymph['Measure'] = 'Lymphocytes'
+FBCLymph = FBCLymph %>%
+    rename ( 
+        Numeric.Result = Lymphocytes
+    )
+
+FBCNeutr$Neutrophils <- rescale(FBCNeutr$Neutrophils)
+FBCNeutr = FBCNeutr %>% select(ID,date,Neutrophils)
+FBCNeutr['Measure'] = 'Neutrophils'
+FBCNeutr = FBCNeutr %>%
+    rename ( 
+        Numeric.Result = Neutrophils
+    )
+
+FBCNLR$NLR_val <- rescale(FBCNLR$NLR_val)
+FBCNLR = FBCNLR %>% select(ID,date,NLR_val)
+FBCNLR['Measure'] = 'NLR'
+FBCNLR = FBCNLR %>%
+    rename ( 
+        Numeric.Result = NLR_val
+    )
+
+FBCWCC$WCC <- rescale(FBCWCC$WCC)
+FBCWCC = FBCWCC %>% select(ID,date,WCC)
+FBCWCC['Measure'] = 'WCC'
+FBCWCC = FBCWCC %>%
+    rename ( 
+        Numeric.Result = WCC
+    )
+
+HBA1c$HBA1c_val <- rescale(HBA1c$HBA1c_val)
+HBA1c = HBA1c %>% select(ID,date,HBA1c_val)
+HBA1c['Measure'] = 'HBA1c'
+HBA1c = HBA1c %>%
+    rename ( 
+        Numeric.Result = HBA1c_val
+    )
+
+poctpH$poctpH_val <- rescale(poctpH$poctpH_val)
+poctpH = poctpH %>% select(ID,date,poctpH_val)
+poctpH['Measure'] = 'poctpH'
+poctpH$date = as.Date(poctpH$date, format="%d/%m/%Y")
+poctpH = poctpH %>%
+    rename ( 
+        Numeric.Result = poctpH_val
+    )
+
+
+poctLAC$poctLAC_val <- rescale(poctLAC$poctLAC_val)
+poctLAC = poctLAC %>% select(ID,date,poctLAC_val)
+poctLAC['Measure'] = 'poctLAC'
+poctLAC = poctLAC %>%
+    rename ( 
+        Numeric.Result = poctLAC_val
+    )
+
+LDH$LDH_val <- rescale(LDH$LDH_val)
+LDH = LDH %>% select(ID,date,LDH_val)
+LDH['Measure'] = 'LDH'
+LDH = LDH %>%
+    rename ( 
+        Numeric.Result = LDH_val
+    )
+
+PCT$PCT_val <- rescale(PCT$PCT_val)
+PCT = PCT %>% select(ID,date,PCT_val)
+PCT['Measure'] = 'PCT'
+PCT = PCT %>%
+    rename ( 
+        Numeric.Result = PCT_val
+    )
+
+PLT$PLT_val <- rescale(PLT$PLT_val)
+PLT = PLT %>% select(ID,date,PLT_val)
+PLT['Measure'] = 'PLT'
+PLT = PLT %>%
+    rename ( 
+        Numeric.Result = PLT_val
+    )
+
+trig$trig_val <- rescale(trig$trig_val)
+trig = trig %>% select(ID,date,trig_val)
+trig['Measure'] = 'trig'
+trig = trig %>%
+    rename ( 
+        Numeric.Result = trig_val
+    )
+
+trop$trop_val <- rescale(trop$trop_val)
+trop = trop %>% select(ID,date,trop_val)
+trop['Measure'] = 'trop'
+trop = trop %>%
+    rename ( 
+        Numeric.Result = trop_val
+    )
 
 
 ```
@@ -855,11 +1062,13 @@ ggplot(data = ICU_dem, aes(x = agegroups, y=Population, fill = Gender)) +
 ### Merge tables
 
 ```{r}
-#total <- rbind(BE,BNP,CRP,DDM,eGFR,FER,fib,Glucose,HB,ClotAPTT,ClotPT,CO2,O2,FBCLymph,FBCNeutr,FBCNLR,FBCWCC,HBA1c,poctpH,poctLAC,LDH,PCT,PLT,trig,trop)
-#total$Measure <- factor(total$Measure, levels = c("BNP","LDH","HBA1c","trig","trop","DDM","FER","PCT","fib","Glucose","PT","APTT","PLT","CRP","eGFR","poctLAC","poctpH","O2","CO2","WCC","Lymphocytes","Neutrophils","NLR","HB","BE"))
+total <- rbind(BE,BNP,CRP,DDM,eGFR,FER,fib,Glucose,HB,ClotAPTT,ClotPT,CO2,O2,FBCLymph,FBCNeutr,FBCNLR,FBCWCC,HBA1c,poctpH,poctLAC,LDH,PCT,PLT,trig,trop)
+total$Measure <- factor(total$Measure, levels = c("BNP","LDH","HBA1c","trig","trop","DDM","FER","PCT","fib","Glucose","PT","APTT","PLT","CRP","eGFR","poctLAC","poctpH","O2","CO2","WCC","Lymphocytes","Neutrophils","NLR","HB","BE"))
 ```
 
 ### Setting day of admission as day 0, and calculating days since admission
+
+Still need to add multiple admissions
 
 ```{r}
 total$firstBookedIn <- 0
