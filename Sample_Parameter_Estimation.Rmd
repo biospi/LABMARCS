@@ -1,0 +1,223 @@
+---
+title: "Sample_Parameter_Estimation"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Sample Size and parameter number estimation
+
+pmsampsize(
+type,
+rsquared,
+parameters,
+shrinkage = 0.9,
+prevalence = NA,
+rate = NA,
+timepoint = NA,
+meanfup = NA,
+intercept = NA,
+sd = NA,
+mmoe = 1.1
+)
+
+* type - specifies the type of analysis for which sample size is being calculated
+  + "c" specifies sample size calculation for a prediction model with a continuous outcome
+  + "b" specifies sample size calculation for a prediction model with a binary outcome
+  + "s" specifies sample size calculation for a prediction model with a survival (time-to-event) outcome
+
+* rsquared - is the expected value of the Cox-Snell R-squared of the new model, where R-squared is the percentage of variation in outcome values explained by the model. For example, the user may input the value of the (Cox-Snell) Rsquared reported for a previous prediction model study in the same field.If taking a value from a previous prediction model development study, users should
+input the model’s adjusted R-squared value, not the apparent R-squared value, as the latter is optimistic (biased). However, if taking the R-squared value from an external validation of a previous model, the apparent R-squared can be used (as the validation data was not used for development, and so R-squared apparent is then unbiased). Note that for binary and survival outcome models, the Cox-Snell R-squared value is required; this is the generalised version of the well-known Rsquared for continuous outcomes, based on the likelihood. The papers by Riley et al. (see references) outline how to obtain the Cox-Snell R-squared value from published studies if they are not reported, using other information (such as the C-statistic or Nagelkerke’s R-squared). Users should be conservative with their chosen R-squared value; for example, by taking the R-squared value from a previous model, even if they hope their new model will improve performance.
+
+* parameters - specifies the number of candidate predictor parameters for potential inclusion in the new prediction model. Note that this may be larger than the number of candidate predictors, as categorical and continuous predictors often require two or more parameters to be estimated.
+
+* shrinkage - 0.9 recommended, which indicates that the predictor effect (beta coefficients) in the model would need to be shrunk by 10% to adjust for overfitting.
+
+* rate - (survival outcome option) specifies the overall event rate in the population of
+interest, for example as obtained from a previous study, for the survival outcome
+of interest. NB: rate must be given in time units used for meanfup and timepoint
+options.
+
+* timepoint - (survival outcome option) specifies the timepoint of interest for prediction. NB:
+time units must be the same as given for meanfup option (e.g. years, months).
+
+* meanfup - (survival outcome option) specifies the average (mean) follow-up time anticipated for individuals in the model development dataset, for example as taken from a previous study in the population of interest. NB: time units must be the same as given for timepoint option.
+
+
+
+QUESTION - Do we want to use the estimated followup times as specified in the protocol? Try many and see what's most appropriate? Need to take into account the number of individuals available for each. Have produced a cumulative plot for this reason. 
+
+QUESTION - Parameters may be larger than the number of candidate predictors, as categorical and continuous predictors often require two or more parameters to be estimated. Could someone clarify? 
+
+# Parameters that can be included
+## Bloods (26)
+
+* BC                - categorical: 34 categories
+* Vir               - categorical: 10 categories
+* BE                - continuous
+* BNP               - continuous
+* APTT              - continuous
+* PT                - continuous
+* CO2               - continuous
+* O2                - continuous
+* Covid CT          - continuous
+* CRP               - continuous
+* DDM               - continuous
+* eGFR              - continuous
+* Lymphocyte count  - continuous
+* Neutrophil count  - continuous
+* NLR (?)           - continuous
+* White Cell Count  - continuous
+* FER               - continuous
+* fib               - continuous
+* Glucose           - continuous
+* HB                - continuous
+* HBA1c             - continuous
+* LDH               - continuous
+* PCT               - continuous
+* Lactate           - continuous
+* pH                - continuous
+* trig              - continuous
+* trop              - continuous
+
+
+## Demographics
+
+* Age               - continuous
+* Gender            - binary
+
+## Antigen
+
+* pneumococcal urinary antigen - binary
+
+## Outcomes data
+
+* Death   - binary
+* Death (date) - continuous (discrete)
+* Admission date - continuous (discrete)
+* Discharge date - continuous (discrete)
+* ICU admission date - continuous (discrete)
+* ICU discharge date - continuous (discrete)
+* Length of stay - continuous (discrete)
+
+## AvonCap
+- Southmead only
+- 417 patients
+- 50, mostly binary
+
+* Ethnicity         - categorical: 4 categories
+* Smoking status    - 
+* Community_Acquired_Pneumonia_radiologically_confirmed
+* Community_Acquired_Pneumonia_clinically_confirmed
+* Community_Acquired_Pneumonia_no_radiology_performed
+* Acute_bronchitis
+* Exacerbation_of_COPD
+* Empyema_lung_abscess
+* LRTI_not_further_specified
+* Congestive_heart_failure
+* Non_infectious_process
+* Non_LRTD_infection_related_diagnosis
+* Other_LRTI_specified
+* NYHA_Heart_failure
+* CRB65_Score
+* NEWS2_Score
+* Respiratory_Disease_None
+* COPD
+* Asthma
+* Bronchiectasis
+* Pulmonary_Fibrosis_Interstitial_Lung_Disease
+* Respiratory_Disease_other
+* Chronic_heart_disease_none
+* Hypertension
+* Atrial_Fibrillation
+* Ischaemic_heart_disease
+* Heart_failure
+* Chronic_heart_disease_other
+* Chronic_Kidney_Disease 
+* Liver_disease
+* Diabetes
+* Cognitive_Impairment_Dementia_none
+* Dementia
+* Cognitive_impairment
+* CVA_Stroke
+* TIA_mini_stroke
+* Hemiplegiahemiplegia_or_paraplegia
+* Peripheral_vascular_disease
+* Immunosuppressive_medication
+* Immunodeficiency
+* Connective_tissue_disease
+* HIV_negative_or_not_tested
+* HIV_positive
+* AIDS 
+* Solid_organ_cancer_malignancy
+* Haematological_malignancy_leukaemia_none
+* Leukaemia
+* Lymphoma
+* Organ_transplantation
+* Pregnancy_post_partum
+* Gastric_Duodenal_Ulcer_disease
+* Rockwood_frailty_score
+* Radiology_result
+
+
+## Sample size and parameter estimation for logistic regression (binary outcome)
+
+rsquared is assumed to be 0.15 in the absence of existing information, following recommendation from Riley et. al 2020, although there are suggested methods for estimating rsquared from the C statistic (area under curve)
+
+### Prevalence 
+```{r}
+
+# Number of those that died
+numDied = sum(!is.na(totalOutcomes$deathDate))
+# 249
+
+# Total number of unique patients in outcomes
+totalPatients = length(unique(totalOutcomes$ID))
+# 952
+
+# Prevalence is 952 / 249
+samplePrevalence =  numDied / totalPatients 
+```
+
+
+```{r}
+library(pmsampsize)
+
+pmsampsize(type = "b", rsquared = 0.15, parameters = 17, shrinkage = 0.9, prevalence = samplePrevalence)
+```
+### When we look at the R^2 values derived from the C-statistic in Bartoletti2020 and Jamal2020, we have a conservative C statistic of 0.8, and subsequently an rsquared of 0.47 
+N.B these C statistics were taken from validation datasets. Both were logistic regression. 
+
+```{r}
+library(pmsampsize)
+
+pmsampsize(type = "b", rsquared = 0.47, parameters = 44, shrinkage = 0.9, prevalence = samplePrevalence)
+```
+
+## Sample size and parameter estimation for Cox proportional hazard model (time-to-event / survival)
+
+rsquared is assumed to be 0.15 in the absence of existing information, following recommendation from Riley et. al 2020, although there are suggested methods for estimating rsquared from the C statistic (area under curve)
+
+### Assumed rsquared
+ 
+```{r}
+library(pmsampsize)
+
+psampsize(type = s, rsquared = 0.15, parameters = 20, shrinkage = 0.9, rate = , timepoint = , meanfup = 30)
+```
+
+### Rsquared derived from other studies
+
+```{r}
+library(pmsampsize)
+
+psampsize(type = s, rsquared = 0.47, parameters = 20, shrinkage = 0.9, rate = , timepoint = , meanfup = 30)
+```
+
+
+QUESTION - if taking rsquared from another study for use in this one, does the reference study have to be of a cox proportional hazard model? 
+QUESTION - 
