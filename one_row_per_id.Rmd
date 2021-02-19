@@ -1,0 +1,1528 @@
+---
+title: "One_row_per_id"
+output: html_notebook
+---
+
+
+# Libraries
+
+```{r}
+library(ggplot2)
+library(hrbrthemes)
+library(tidyverse)
+library(plotly)
+library(BBmisc)
+library(scales)
+library(dplyr)
+library(naniar)
+library(gridExtra)
+library(knitr)
+library(ggplot2)
+library(hrbrthemes)
+library(tidyverse)
+library(plotly)
+library(BBmisc)
+library(scales)
+library(dplyr)
+library(naniar)
+library(gridExtra)
+library(knitr)
+library(finalfit)
+```
+# Global variables
+```{r}
+dateRange <- 5
+```
+
+
+
+# Load in data files
+## Outcome data
+
+### NBT Outcomes
+
+```{r}
+NBT_outcomes <- read.csv(file("NBT_outcomes.csv"))
+NBT_outcomes = NBT_outcomes %>% 
+  rename(
+    admissionDate = admission_date,
+  )
+NBT_outcomes$admissionDate = as.Date(NBT_outcomes$admissionDate, format="%d/%m/%Y")
+NBT_outcomes = NBT_outcomes %>% 
+  rename(
+    dischargeDate = discharge_date,
+  )
+NBT_outcomes$dischargeDate = as.Date(NBT_outcomes$dischargeDate, format="%d/%m/%Y")
+NBT_outcomes_deaths = NBT_outcomes %>%
+  filter(DischargeOutcomeDesc == "Patient Died")
+NBT_outcomes_deaths$deathDate = NBT_outcomes_deaths$dischargeDate
+NBT_outcomes <- merge(NBT_outcomes,NBT_outcomes_deaths,all=TRUE)
+NBT_outcomes$ITU_Start = as.Date(NBT_outcomes$ITU_Start, format="%d/%m/%Y")
+NBT_outcomes$ITU_End = as.Date(NBT_outcomes$ITU_End, format="%d/%m/%Y")
+NBT_outcomes2 = NBT_outcomes %>% select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+### UHB Outcomes
+
+```{r}
+UHB_outcomes1 <- read.csv(file("UHB_outcomes1.csv"))
+UHB_outcomes1 = UHB_outcomes1 %>% 
+  rename(
+    admissionDate = attend_date,
+  )
+UHB_outcomes1$admissionDate = as.Date(UHB_outcomes1$admissionDate, format="%d/%m/%Y")
+UHB_outcomes1$dischargeDate = as.Date(UHB_outcomes1$admissionDate + as.integer(UHB_outcomes1$hospital_length_of_stay))
+UHB_outcomes1 = UHB_outcomes1 %>% 
+  rename(
+    deathDate = fu_death_date,
+  )
+UHB_outcomes1$deathDate = as.Date(UHB_outcomes1$deathDate, format="%d/%m/%Y")
+UHB_outcomes1$ITU_Start <- as.Date(NA)
+UHB_outcomes1$ITU_End <- as.Date(NA)
+UHB_outcomes12 = UHB_outcomes1 %>% select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+
+UHB_outcomes2 <- read.csv(file("UHB_outcomes2.csv"))
+UHB_outcomes2 = UHB_outcomes2 %>% 
+  rename(
+    admissionDate = attend_dte,
+  )
+UHB_outcomes2$admissionDate = as.Date(UHB_outcomes2$admissionDate, format="%d/%m/%Y")
+UHB_outcomes2 = UHB_outcomes2 %>% 
+  rename(
+    dischargeDate = outcome_dte,
+  )
+UHB_outcomes2$dischargeDate = as.Date(UHB_outcomes2$dischargeDate, format="%d/%m/%Y")
+UHB_outcomes2_deaths = UHB_outcomes2 %>%
+  filter(outcome == 3)
+UHB_outcomes2_deaths$deathDate = UHB_outcomes2_deaths$dischargeDate
+UHB_outcomes2 <- merge(UHB_outcomes2,UHB_outcomes2_deaths,all=TRUE)
+UHB_outcomes2$ITU_Start <- as.Date(NA)
+UHB_outcomes2$ITU_End <- as.Date(NA)
+UHB_outcomes22 = UHB_outcomes2 %>% select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+### Weston outcomes
+
+```{r}
+WestonOutcomes <- read.csv(file("Weston Outcomes.csv"))
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    admissionDate = Admission.date,
+  )
+WestonOutcomes$admissionDate = as.Date(WestonOutcomes$admissionDate, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    dischargeDate = Discharge.date,
+  )
+WestonOutcomes$dischargeDate = as.Date(WestonOutcomes$dischargeDate, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    ITU_Start = ICU.Admission.Date
+  )
+WestonOutcomes$ITU_Start = as.Date(WestonOutcomes$ITU_Start, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    ITU_End = ICU.Discharge.Date
+  )
+WestonOutcomes$ITU_End = as.Date(WestonOutcomes$ITU_End, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    deathDate = Date.of.Death
+  )
+WestonOutcomes$deathDate = as.Date(WestonOutcomes$deathDate, format="%d/%m/%Y")
+WestonOutcomes2 = WestonOutcomes %>% select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+
+
+
+
+### Load variable data
+#### BE - Bicarbonate Excess
+
+```{r}
+BE <- read.csv(file("BE.csv"))
+BE$Date.Booked.In = as.Date(BE$Date.Booked.In, format="%d/%m/%Y")
+BE = BE %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BE = BE %>%
+  rename(
+    BE_val = Numeric.Result
+  )
+
+BE = BE %>% select(ID,date,BE_val)
+
+BE <- BE[complete.cases(BE),]
+
+BE2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "BE_val")
+colnames(BE2) <- x
+
+
+for (id in unique(BE$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = BE[BE$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(BE[BE$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$BE_val)
+  nRow <- data.frame(ID=id,BE_val=avg)
+  BE2 <- rbind(BE2,nRow)
+}
+
+BE <- BE2
+rm(BE2)
+
+```
+
+#### BNP - B-type natriuretic peptide
+
+```{r}
+BNP <- read.csv(file("BNP.csv"))
+BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format="%d/%m/%Y")
+BNP = BNP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BNP = BNP %>%
+  rename(
+    BNP_val = Numeric.Result
+  )
+
+BNP = BNP %>% select(ID,date,BNP_val)
+
+BNP <- BNP[complete.cases(BNP),]
+
+BNP2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "BNP_val")
+colnames(BNP2) <- x
+
+for (id in unique(BNP$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = BNP[BNP$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(BNP[BNP$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$BNP_val)
+  nRow <- data.frame(ID=id,BNP_val=avg)
+  BNP2 <- rbind(BNP2,nRow)
+}
+
+BNP <- BNP2
+rm(BNP2)
+
+```
+
+#### CRP - C-Reactive Protein
+
+```{r}
+CRP <- read.csv(file("CRP.csv"))
+CRP$Date.Booked.In = as.Date(CRP$Date.Booked.In, format="%d/%m/%Y")
+CRP = CRP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+CRP = CRP %>%
+  rename(
+    CRP_val = Numeric.Result
+  )
+
+CRP = CRP %>% select(ID,date,CRP_val)
+
+CRP <- CRP[complete.cases(CRP),]
+
+CRP2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "CRP_val")
+colnames(CRP2) <- x
+
+for (id in unique(CRP$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = CRP[CRP$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(CRP[CRP$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$CRP_val)
+  nRow <- data.frame(ID=id,CRP_val=avg)
+  CRP2 <- rbind(CRP2,nRow)
+}
+
+CRP <- CRP2
+rm(CRP2)
+
+```
+
+#### CovidCT - Cycle Threshold (CT) value of PCR for COVID
+
+```{r}
+CovidCT <- read.csv(file("CovidCT.csv"))
+CovidCT['Measure']='CovidCT'
+CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
+CovidCT = CovidCT %>% 
+  rename(
+    date = Specimen.Date,
+  )
+```
+
+#### DDM - D-Dimer 
+
+```{r}
+DDM <- read.csv(file("DDM.csv"))
+DDM$Date.Booked.In = as.Date(DDM$Date.Booked.In, format="%d/%m/%Y")
+DDM = DDM %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+DDM = DDM %>%
+  rename(
+    DDM_val = Numeric.Result
+  )
+
+DDM = DDM %>% select(ID,date,DDM_val)
+
+DDM <- DDM[complete.cases(DDM),]
+
+DDM2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "DDM_val")
+colnames(DDM2) <- x
+
+for (id in unique(DDM$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = DDM[DDM$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(DDM[DDM$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$DDM_val)
+  nRow <- data.frame(ID=id,DDM_val=avg)
+  DDM2 <- rbind(DDM2,nRow)
+}
+
+DDM <- DDM2
+rm(DDM2)
+
+```
+
+#### eGFR - Estimated Glomerular Filtration Rate
+
+```{r}
+eGFR <- read.csv(file("eGFR.csv"))
+eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
+eGFR = eGFR %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+eGFR = eGFR %>%
+  rename(
+    eGFR_val = Numeric.Result
+  )
+
+eGFR = eGFR %>% select(ID,date,eGFR_val)
+
+eGFR <- eGFR[complete.cases(eGFR),]
+
+eGFR2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "eGFR_val")
+colnames(eGFR2) <- x
+
+for (id in unique(eGFR$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = eGFR[eGFR$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(eGFR[eGFR$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$eGFR_val)
+  nRow <- data.frame(ID=id,eGFR_val=avg)
+  eGFR2 <- rbind(eGFR2,nRow)
+}
+
+eGFR <- eGFR2
+rm(eGFR2)
+
+```
+
+#### FER - Ferritin
+
+```{r}
+FER <- read.csv(file("FER.csv"))
+FER$Date.Booked.In = as.Date(FER$Date.Booked.In, format="%d/%m/%Y")
+FER = FER %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+FER = FER %>%
+  rename(
+    FER_val = Numeric.Result
+  )
+
+FER = FER %>% select(ID,date,FER_val)
+
+FER <- FER[complete.cases(FER),]
+
+FER2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "FER_val")
+colnames(FER2) <- x
+
+for (id in unique(FER$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = FER[FER$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(FER[FER$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$FER_val)
+  nRow <- data.frame(ID=id,FER_val=avg)
+  FER2 <- rbind(FER2,nRow)
+}
+
+FER <- FER2
+rm(FER2)
+
+```
+
+#### Fib - Fibrinogen
+
+```{r}
+fib <- read.csv(file("fib.csv"))
+fib$Date.Booked.In = as.Date(fib$Date.Booked.In, format="%d/%m/%Y")
+fib = fib %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+fib = fib %>%
+  rename(
+    fib_val = Numeric.Result
+  )
+
+fib = fib %>% select(ID,date,fib_val)
+
+fib <- fib[complete.cases(fib),]
+
+fib2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "fib_val")
+colnames(fib2) <- x
+
+for (id in unique(fib$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = fib[fib$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(fib[fib$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$fib_val)
+  nRow <- data.frame(ID=id,fib_val=avg)
+  fib2 <- rbind(fib2,nRow)
+}
+
+fib <- fib2
+rm(fib2)
+
+```
+
+#### Glucose
+
+```{r}
+Glucose <- read.csv(file("Glucose.csv"))
+Glucose$Date.Booked.In = as.Date(Glucose$Date.Booked.In, format="%d/%m/%Y")
+Glucose = Glucose %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+Glucose = Glucose %>%
+  rename(
+    Glucose_val = Numeric.Result
+  )
+
+Glucose = Glucose %>% select(ID,date,Glucose_val)
+
+Glucose <- Glucose[complete.cases(Glucose),]
+
+Glucose2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "Glucose_val")
+colnames(Glucose2) <- x
+
+for (id in unique(Glucose$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = Glucose[Glucose$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(Glucose[Glucose$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$Glucose_val)
+  nRow <- data.frame(ID=id,Glucose_val=avg)
+  Glucose2 <- rbind(Glucose2,nRow)
+}
+
+Glucose <- Glucose2
+rm(Glucose2)
+
+```
+
+#### HB - Hemoglobin
+
+```{r}
+HB <- read.csv(file("HB.csv"))
+HB$Date.Booked.In = as.Date(HB$Date.Booked.In, format="%d/%m/%Y")
+HB = HB %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+HB = HB %>%
+  rename(
+    HB_val = Numeric.Result
+  )
+
+HB = HB %>% select(ID,date,HB_val)
+
+HB <- HB[complete.cases(HB),]
+
+HB2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "HB_val")
+colnames(HB2) <- x
+
+for (id in unique(HB$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = HB[HB$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(HB[HB$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$HB_val)
+  nRow <- data.frame(ID=id,HB_val=avg)
+  HB2 <- rbind(HB2,nRow)
+}
+
+HB <- HB2
+rm(HB2)
+
+```
+
+#### HBA1c - glycated haemoglobin
+
+```{r}
+HBA1c <- read.csv(file("HBA1c.csv"))
+HBA1c$Date.Booked.In = as.Date(HBA1c$Date.Booked.In, format="%d/%m/%Y")
+HBA1c = HBA1c %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+HBA1c = HBA1c %>%
+  rename(
+    HBA1c_val = Numeric.Result
+  )
+
+HBA1c = HBA1c %>% select(ID,date,HBA1c_val)
+
+HBA1c <- HBA1c[complete.cases(HBA1c),]
+
+HBA1c2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "HBA1c_val")
+colnames(HBA1c2) <- x
+
+for (id in unique(HBA1c$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = HBA1c[HBA1c$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(HBA1c[HBA1c$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$HBA1c_val)
+  nRow <- data.frame(ID=id,HBA1c_val=avg)
+  HBA1c2 <- rbind(HBA1c2,nRow)
+}
+
+HBA1c <- HBA1c2
+rm(HBA1c2)
+
+```
+
+#### LDH - Lactate dehydrogenase
+
+```{r}
+LDH <- read.csv(file("LDH.csv"))
+LDH$Date.Booked.In = as.Date(LDH$Date.Booked.In, format="%d/%m/%Y")
+LDH = LDH %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+LDH = LDH %>%
+  rename(
+    LDH_val = Numeric.Result
+  )
+
+LDH = LDH %>% select(ID,date,LDH_val)
+
+LDH <- LDH[complete.cases(LDH),]
+
+LDH2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "LDH_val")
+colnames(LDH2) <- x
+
+for (id in unique(LDH$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = LDH[LDH$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(LDH[LDH$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$LDH_val)
+  nRow <- data.frame(ID=id,LDH_val=avg)
+  LDH2 <- rbind(LDH2,nRow)
+}
+
+LDH <- LDH2
+rm(LDH2)
+
+```
+
+#### PCT - Procalcitonin 
+
+```{r}
+PCT <- read.csv(file("PCT.csv"))
+PCT$Date.Booked.In = as.Date(PCT$Date.Booked.In, format="%d/%m/%Y")
+PCT = PCT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+PCT = PCT %>%
+  rename(
+    PCT_val = Numeric.Result
+  )
+
+PCT = PCT %>% select(ID,date,PCT_val)
+
+PCT <- PCT[complete.cases(PCT),]
+
+PCT2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "PCT_val")
+colnames(PCT2) <- x
+
+for (id in unique(PCT$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = PCT[PCT$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(PCT[PCT$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$PCT_val)
+  nRow <- data.frame(ID=id,PCT_val=avg)
+  PCT2 <- rbind(PCT2,nRow)
+}
+
+PCT <- PCT2
+rm(PCT2)
+
+```
+
+#### PLT - Platelet Count
+
+```{r}
+PLT <- read.csv(file("PLT.csv"))
+PLT$Date.Booked.In = as.Date(PLT$Date.Booked.In, format="%d/%m/%Y")
+PLT = PLT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+PLT = PLT %>%
+  rename(
+    PLT_val = Numeric.Result
+  )
+
+PLT = PLT %>% select(ID,date,PLT_val)
+
+PLT <- PLT[complete.cases(PLT),]
+
+PLT2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "PLT_val")
+colnames(PLT2) <- x
+
+for (id in unique(PLT$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = PLT[PLT$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(PLT[PLT$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$PLT_val)
+  nRow <- data.frame(ID=id,PLT_val=avg)
+  PLT2 <- rbind(PLT2,nRow)
+}
+
+PLT <- PLT2
+rm(PLT2)
+
+```
+
+#### Trig - Triglycerides
+
+```{r}
+trig <- read.csv(file("trig.csv"))
+trig$Date.Booked.In = as.Date(trig$Date.Booked.In, format="%d/%m/%Y")
+trig = trig %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+trig = trig %>%
+  rename(
+    trig_val = Numeric.Result
+  )
+
+trig = trig %>% select(ID,date,trig_val)
+
+trig <- trig[complete.cases(trig),]
+
+trig2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "trig_val")
+colnames(trig2) <- x
+
+for (id in unique(trig$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = trig[trig$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(trig[trig$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$trig_val)
+  nRow <- data.frame(ID=id,trig_val=avg)
+  trig2 <- rbind(trig2,nRow)
+}
+
+trig <- trig2
+rm(trig2)
+
+```
+
+#### Trop - Troponin
+
+```{r}
+trop <- read.csv(file("trop.csv"))
+trop$Date.Booked.In = as.Date(trop$Date.Booked.In, format="%d/%m/%Y")
+trop = trop %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+trop = trop %>%
+  rename(
+    trop_val = Numeric.Result
+  )
+
+trop = trop %>% select(ID,date,trop_val)
+
+trop <- trop[complete.cases(trop),]
+
+trop2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "trop_val")
+colnames(trop2) <- x
+
+for (id in unique(trop$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = trop[trop$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(trop[trop$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$trop_val)
+  nRow <- data.frame(ID=id,trop_val=avg)
+  trop2 <- rbind(trop2,nRow)
+}
+
+trop <- trop2
+rm(trop2)
+
+```
+
+#### Vir - Virology
+
+```{r}
+Vir <- read.csv(file("Vir.csv"))
+Vir['Measure']='Vir'
+Vir$Sample.Date = as.Date(Vir$Sample.Date, format="%d/%m/%Y")
+Vir = Vir %>% 
+  rename(
+    date = Sample.Date,
+  )
+Vir = Vir %>% 
+  rename(
+    Adenovirus = Adenovirus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Human_Metapneumovirus = Human.metapneumovirus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Influenza_A = Influenza.A..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Influenza_B = Influenza.B..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_1 = Parainfluenza.Type.1..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_2 = Parainfluenza.Type.2..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_3 = Parainfluenza.Type.3..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_4 = Parainfluenza.Type.4..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Respiratory_Syncytial_Virus = Respiratory.Syncytial.Virus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Rhinovirus = Rhinovirus..PCR.,
+  )
+```
+
+#### FBC - Full Blood Count
+Made up of:
+* Lymphocytes
+* Neutrophils
+* White Cell Count
+
+```{r}
+FBC <- read.csv(file("FBC.csv"))
+FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
+FBC = FBC %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+```
+
+Split off Lymphocytes:
+
+```{r}
+FBCLymph = FBC %>% select(ID,date,Result.Lymphocytes)
+FBCLymph = FBCLymph %>% 
+  rename(
+    Lymphocytes = Result.Lymphocytes,
+  )
+
+FBCLymph = FBCLymph %>% select(ID,date,Lymphocytes)
+
+FBCLymph <- FBCLymph[complete.cases(FBCLymph),]
+
+FBCLymph2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "Lymphocytes")
+colnames(FBCLymph2) <- x
+
+for (id in unique(FBCLymph$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = FBCLymph[FBCLymph$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(FBCLymph[FBCLymph$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$Lymphocytes)
+  nRow <- data.frame(ID=id,Lymphocytes=avg)
+  FBCLymph2 <- rbind(FBCLymph2,nRow)
+}
+
+FBCLymph <- FBCLymph2
+rm(FBCLymph2)
+
+```
+
+Split off Neutrophils:
+
+```{r}
+FBCNeutr = FBC %>% select(ID,date,Result.Neutrophils)
+FBCNeutr = FBCNeutr %>% 
+  rename(
+    Neutrophils = Result.Neutrophils,
+  )
+
+FBCNeutr = FBCNeutr %>% select(ID,date,Neutrophils)
+
+FBCNeutr <- FBCNeutr[complete.cases(FBCNeutr),]
+
+FBCNeutr2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "Neutrophils")
+colnames(FBCNeutr2) <- x
+
+for (id in unique(FBCNeutr$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = FBCNeutr[FBCNeutr$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(FBCNeutr[FBCNeutr$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$Neutrophils)
+  nRow <- data.frame(ID=id,Neutrophils=avg)
+  FBCNeutr2 <- rbind(FBCNeutr2,nRow)
+}
+
+FBCNeutr <- FBCNeutr2
+rm(FBCNeutr2)
+
+```
+
+Split off White Cell Count:
+
+```{r}
+FBCWCC = FBC %>% select(ID,date,Result.WCC)
+FBCWCC = FBCWCC %>% 
+  rename(
+    WCC = Result.WCC,
+  )
+
+FBCWCC = FBCWCC %>% select(ID,date,WCC)
+
+FBCWCC <- FBCWCC[complete.cases(FBCWCC),]
+
+FBCWCC2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "WCC")
+colnames(FBCWCC2) <- x
+
+for (id in unique(FBCWCC$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = FBCWCC[FBCWCC$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(FBCWCC[FBCWCC$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$WCC)
+  nRow <- data.frame(ID=id,WCC=avg)
+  FBCWCC2 <- rbind(FBCWCC2,nRow)
+}
+
+FBCWCC <- FBCWCC2
+rm(FBCWCC2)
+
+```
+
+Split off Neutrophil to Lymphocyte Ratio
+
+```{r}
+FBCNLR = FBC %>% select(ID,date,NLR)
+FBCNLR = FBCNLR %>% 
+  rename(
+    NLR_val = NLR,
+  )
+
+FBCNLR = FBCNLR %>% select(ID,date,NLR_val)
+
+FBCNLR <- FBCNLR[complete.cases(FBCNLR),]
+
+FBCNLR2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "NLR_val")
+colnames(FBCNLR2) <- x
+
+for (id in unique(FBCNLR$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = FBCNLR[FBCNLR$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(FBCNLR[FBCNLR$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$NLR_val)
+  nRow <- data.frame(ID=id,NLR_val=avg)
+  FBCNLR2 <- rbind(FBCNLR2,nRow)
+}
+
+FBCNLR <- FBCNLR2
+rm(FBCNLR2)
+```
+
+#### CovidCT - Cycle Threshold (CT) value of PCR for COVID
+
+```{r}
+CovidCT <- read.csv(file("CovidCT.csv"))
+CovidCT['Measure']='CovidCT'
+CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
+CovidCT = CovidCT %>% 
+  rename(
+    date = Specimen.Date,
+  )
+```
+
+#### Clot
+Made up of:
+* APTT - Activated Partial Thromboplastin Time
+* PT - Prothrombin Time
+
+```{r}
+Clot <- read.csv(file("Clot.csv"))
+Clot$Date.Booked.In = as.Date(Clot$Date.Booked.In, format="%d/%m/%Y")
+Clot = Clot %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+```
+
+Split off APTT:
+
+```{r}
+ClotAPTT = Clot %>% select(ID,date,APTT)
+ClotAPTT = ClotAPTT %>% 
+  rename(
+    APTT_val = APTT,
+  )
+
+ClotAPTT = ClotAPTT %>% select(ID,date,APTT_val)
+
+ClotAPTT <- ClotAPTT[complete.cases(ClotAPTT),]
+
+ClotAPTT2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "APTT_val")
+colnames(ClotAPTT2) <- x
+
+for (id in unique(ClotAPTT$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = ClotAPTT[ClotAPTT$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(ClotAPTT[ClotAPTT$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$APTT_val)
+  nRow <- data.frame(ID=id,APTT_val=avg)
+  ClotAPTT2 <- rbind(ClotAPTT2,nRow)
+}
+
+ClotAPTT <- ClotAPTT2
+rm(ClotAPTT2)
+```
+
+Split off PT:
+
+```{r}
+ClotPT = Clot %>% select(ID,date,PT)
+ClotPT = ClotPT %>% 
+  rename(
+    PT_val = PT,
+  )
+ClotPT = ClotPT %>% select(ID,date,PT_val)
+
+ClotPT <- ClotPT[complete.cases(ClotPT),]
+
+ClotPT2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "PT_val")
+colnames(ClotPT2) <- x
+
+for (id in unique(ClotPT$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = ClotPT[ClotPT$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(ClotPT[ClotPT$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$PT_val)
+  nRow <- data.frame(ID=id,PT_val=avg)
+  ClotPT2 <- rbind(ClotPT2,nRow)
+}
+
+ClotPT <- ClotPT2
+rm(ClotPT2)
+```
+
+#### Antigen 
+
+```{r}
+Antigen <- read.csv(file("Antigen.csv"))
+Antigen = Antigen %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### BC
+
+```{r}
+BC <- read.csv(file("BC.csv"))
+BC['Measure']='BC'
+BC$Date.of.Specimen = as.Date(BC$Date.of.Specimen, format="%d/%m/%Y")
+BC = BC %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+
+```
+
+#### Resp
+
+```{r}
+Resp <- read.csv(file("Resp.csv"))
+Resp['Measure']='Resp'
+Resp$Date.of.Specimen = as.Date(Resp$Date.of.Specimen, format="%d/%m/%Y")
+Resp = Resp %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### Urine
+
+```{r}
+Urine <- read.csv(file("Urine.csv"))
+Urine['Measure']='Urine'
+Urine$Date.of.Specimen = as.Date(Urine$Date.of.Specimen, format="%d/%m/%Y")
+Urine = Urine %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### poctLAC - Point of Care Testing - Lactate
+
+```{r}
+poctLAC <- read.csv(file("poctLAC.csv"))
+#Format date
+poctLAC$Date.of.Specimen = as.Date(poctLAC$Date.of.Specimen, format="%d/%m/%Y")
+poctLAC = poctLAC %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+poctLAC = poctLAC %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+poctLAC = poctLAC %>%
+  rename(
+    poctLAC_val = Numeric.Result
+  )
+#Combine date and time
+poctLAC$dateTime = as.POSIXct(paste(poctLAC$date, poctLAC$time), format="%Y-%m-%d %H:%M:%S")
+# Select relevant variables
+poctLAC$date = as.Date(poctLAC$date, format="%d/%m/%Y")
+poctLAC = poctLAC %>% select(ID,date,poctLAC_val)
+
+poctLAC <- poctLAC[complete.cases(poctLAC),]
+
+poctLAC2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "poctLAC_val")
+colnames(poctLAC2) <- x
+
+for (id in unique(poctLAC$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = poctLAC[poctLAC$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(poctLAC[poctLAC$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$poctLAC_val)
+  nRow <- data.frame(ID=id,poctLAC_val=avg)
+  poctLAC2 <- rbind(poctLAC2,nRow)
+}
+
+poctLAC <- poctLAC2
+rm(poctLAC2)
+```
+
+#### poctO2 - Point of Care Testing - O2 and CO2
+Made up of:
+* O2
+* CO2
+
+```{r}
+poctO2 <- read.csv(file("poctO2.csv"))
+```
+
+O2:
+
+```{r}
+O2 <- poctO2 %>%
+  filter(Test.Desc == "Arterial pO2")
+O2$Date.of.Specimen = as.Date(O2$Date.of.Specimen, format="%d/%m/%Y")
+O2 = O2 %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+O2 = O2 %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+O2 = O2 %>% 
+  rename(
+    O2_val = Numeric.Result,
+  )
+#Combine date and time
+O2$dateTime = as.POSIXct(paste(O2$date, O2$time), format="%Y-%m-%d %H:%M:%S")
+O2 = O2 %>% select(ID,date,O2_val)
+
+O2 <- O2[complete.cases(O2),]
+
+O22 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "O2_val")
+colnames(O22) <- x
+
+for (id in unique(O2$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = O2[O2$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(O2[O2$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$O2_val)
+  nRow <- data.frame(ID=id,O2_val=avg)
+  O22 <- rbind(O22,nRow)
+}
+
+O2 <- O22
+rm(O22)
+```
+
+CO2:
+
+```{r}
+CO2 <- poctO2 %>%
+  filter(Test.Desc == "Arterial pCO2")
+#Format date
+CO2$Date.of.Specimen = as.Date(CO2$Date.of.Specimen, format="%d/%m/%Y")
+CO2 = CO2 %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+CO2 = CO2 %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+CO2 = CO2 %>% 
+  rename(
+    CO2_val = Numeric.Result,
+  )
+#Combine date and time
+CO2$dateTime = as.POSIXct(paste(CO2$date, CO2$time), format="%Y-%m-%d %H:%M:%S")
+CO2 = CO2 %>% select(ID,date,CO2_val)
+
+CO2 <- CO2[complete.cases(CO2),]
+
+CO22 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "CO2_val")
+colnames(CO22) <- x
+
+for (id in unique(CO2$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = CO2[CO2$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(CO2[CO2$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$CO2_val)
+  nRow <- data.frame(ID=id,CO2_val=avg)
+  CO22 <- rbind(CO22,nRow)
+}
+
+CO2 <- CO22
+rm(CO22)
+```
+
+#### poctpH - Point of Care Testing - pH
+
+```{r}
+poctpH <- read.csv(file("poctpH.csv"))
+#Format date
+poctpH$Date.of.Specimen = as.Date(poctpH$Date...Time.of.Specimen, format="%d/%m/%Y")
+poctpH = poctpH %>% 
+  rename(
+    date = Date...Time.of.Specimen,
+  )
+poctpH = poctpH %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+poctpH = poctpH %>% 
+  rename(
+    poctpH_val = Numeric.Result,
+  )
+#Combine date and time
+poctpH$dateTime = as.POSIXct(paste(poctpH$date, poctpH$time), format="%Y-%m-%d %H:%M:%S")
+poctpH$date = as.Date(poctpH$date, format="%d/%m/%Y")
+poctpH = poctpH %>% select(ID,date,poctpH_val)
+
+poctpH <- poctpH[complete.cases(poctpH),]
+
+poctpH2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "poctpH_val")
+colnames(poctpH2) <- x
+
+for (id in unique(poctpH$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = poctpH[poctpH$ID==id,]$date
+  idAdmission = idDates[1]
+  avg = mean(poctpH[poctpH$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$poctpH_val)
+  nRow <- data.frame(ID=id,poctpH_val=avg)
+  poctpH2 <- rbind(poctpH2,nRow)
+}
+
+poctpH <- poctpH2
+rm(poctpH2)
+```
+
+## AvonCap
+
+```{r}
+AvonCap <- read.csv(file("AvonCap.csv"))
+AvonCap = AvonCap %>%
+    rename(
+        Community_Acquired_Pneumonia_radiologically_confirmed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...radiologically.confirmed.,
+        Community_Acquired_Pneumonia_clinically_confirmed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...clinically.confirmed..but.not.on.radiology..,
+        Community_Acquired_Pneumonia_no_radiology_performed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...no.radiology.performed.,
+        Acute_bronchitis = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Acute.bronchitis.,
+        Exacerbation_of_COPD = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Exacerbation.of.COPD.,
+        Empyema_lung_abscess = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Empyema.lung.abscess.,
+        LRTI_not_further_specified = Final.Standard.of.Care.LRTD.related.diagnosis..choice.LRTI...not.further.specified.,
+        Congestive_heart_failure = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Congestive.heart.failure.,
+        Non_infectious_process = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Non.infectious.process.,
+        Non_LRTD_infection_related_diagnosis = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Non.LRTD.infection.related.diagnosis.,
+        Other_LRTI_specified = Other.LRTI.Specified,
+        NYHA_Heart_failure = NYHA...Heart.Failure..nbsp.,
+        CRB65_Score = CRB65.Score,
+        NEWS2_Score = NEWS.2.Score,
+        Respiratory_Disease_None = Respiratory.Disease..choice.None.,
+        COPD = Respiratory.Disease..choice.COPD..Chronic.Obstructive.Pulmonary.Disease.Emphysema..,
+        Asthma = Respiratory.Disease..choice.Asthma.,
+        Bronchiectasis = Respiratory.Disease..choice.Bronchiectasis.,
+        Pulmonary_Fibrosis_Interstitial_Lung_Disease = Respiratory.Disease..choice.Pulmonary.Fibrosis.Interstitial.Lung.Disease.,
+        Respiratory_Disease_other = Respiratory.Disease..choice.Other.,
+        Chronic_heart_disease_none = Chronic.Heart.Disease..choice.None.,
+        Hypertension = Chronic.Heart.Disease..choice.Hypertension.,
+        Atrial_Fibrillation = Chronic.Heart.Disease..choice.Atrial.Fibrillation.,
+        Ischaemic_heart_disease = Chronic.Heart.Disease..choice.Ischaemic.heart.disease.,
+        Heart_failure = Chronic.Heart.Disease..choice.Heart.failure.CCF.,
+        Chronic_heart_disease_other = Chronic.Heart.Disease..choice.Other.,
+        Chronic_Kidney_Disease = Chronic.Kidney.Disease..CKD..Mod.Severe..eGFR..30..Cr.265.umol.L..dialysis..transplantation..uremic.syndrome,
+        Liver_disease = Liver.Disease.Mild...nbsp.cirrhosis.without.portal.HTN..chronic.hepatitis..Mod.Severe...nbsp.cirrhosis.with.portal.HTN.....variceal.bleeding,
+        Diabetes = Diabetes,
+        Cognitive_Impairment_Dementia_none = Cognitive.Impairment.Dementia..choice.None.,
+        Dementia = Cognitive.Impairment.Dementia..choice.Dementia.,
+        Cognitive_impairment = Cognitive.Impairment.Dementia..choice.Cognitive.Impairment.,
+        CVA_Stroke = Cognitive.Impairment.Dementia..choice.CVA..stroke..,
+        TIA_mini_stroke = Cognitive.Impairment.Dementia..choice.TIA..mini.stroke..,
+        Hemiplegiahemiplegia_or_paraplegia = Hemiplegiahemiplegia.or.paraplegia,
+        Peripheral_vascular_disease = Peripheral.Vascular.Disease.Intermittent.claudication..periph..arterial.bypass.for.insufficiency..gangrene..acute.arterial.insufficiency..untreated.aneurysm....6cm..nbsp.,
+        Immunosuppressive_medication = Immunosuppressive.Medication.includes.oral.steroids..biologics..chemotherapy.,
+        Immunodeficiency = Immunodeficiency.eg.SCID..hypogammaglobulinaemia..splenectomy.,
+        Connective_tissue_disease = Connective.Tissue.Disease..SLE..polymyositis..mixed.nbsp.Connective.Tissue.Disease..polymyalgia.rheumatica..moderate.to.severe.Rheumatoid.Arthritis.,
+        HIV_negative_or_not_tested = HIV.status..choice.Negative..no.HIV...or.not.tested.,
+        HIV_positive = HIV.status..choice.HIV.,
+        AIDS = HIV.status..choice.AIDS.,
+        Solid_organ_cancer_malignancy = Solid.Organ.Cancer.Malignancy.Initially.treated.in.the.last.5.years.exclude.non.melanomatous.skin.cancers.and.in.situ.cervical.carcinoma,
+        Haematological_malignancy_leukaemia_none = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.None.,
+        Leukaemia = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.Leukaemia.,
+        Lymphoma = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.Lymphoma.,
+        Organ_transplantation = Organ.Transplantation,
+        Pregnancy_post_partum = Pregnancy.Post.partum,
+        Gastric_Duodenal_Ulcer_disease = Gastric.Duodenal.Ulcer.Disease.Patients.who.have.required.treatment.for.PUD.nbsp.,
+        Rockwood_frailty_score = Rockwood.Frailty.Score,
+        Radiology_result = Radiology.Result
+    )
+```
+
+
+## Merge Outcome data
+
+```{r}
+# Merge outcomes data
+totalOutcomes <- rbind(UHB_outcomes12,UHB_outcomes22,NBT_outcomes2,WestonOutcomes2) # NBT Outcomes must be excluded as inconsistent
+totalOutcomes$deathDate = as.Date(totalOutcomes$deathDate, format="%d/%m/%Y")
+totalOutcomes$ITU_Start = as.Date(totalOutcomes$ITU_Start, format="%d/%m/%Y")
+totalOutcomes$ITU_End = as.Date(totalOutcomes$ITU_End, format="%d/%m/%Y")
+totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format="%d/%m/%Y")
+```
+
+
+## Demographics Table
+Age and gender for every individual
+
+```{r}
+dem = Vir %>%
+  distinct(ID, .keep_all = TRUE)
+dem = dem %>%
+  select(ID,Gender,Age)
+```
+
+
+## Merge outcomes with demographics
+
+```{r}
+total = merge(totalOutcomes,dem, by="ID")
+```
+
+
+### Those that have died
+```{r}
+deceasedSubset = subset(total, !is.na(total$deathDate))
+deceasedSubset$died = TRUE
+```
+
+### Add new column for died / didn't die to total
+```{r}
+total = merge(total,deceasedSubset, all.x=TRUE)
+total$died[is.na(total$died)] <- FALSE
+
+```
+
+### Those that went to ICU
+```{r}
+ICU_subset = subset(totalOutcomes, !is.na(totalOutcomes$ITU_Start))
+ICU_subset$went_to_icu = TRUE
+
+```
+
+
+### Add new column for went to ICU / didn't go to ICU
+```{r}
+total = merge(total,ICU_subset, all.x=TRUE)
+total$went_to_icu[is.na(total$went_to_icu)] <- FALSE
+```
+
+
+### Died or went to ICU
+```{r}
+total$severeOutcome[total$went_to_icu == TRUE | total$died == TRUE] <- TRUE
+total$severeOutcome[is.na(total$severeOutcome)] <- FALSE
+```
+
+
+# Merge values with total table by admission date
+
+```{r}
+variables = list(BE,BNP,CRP,DDM,eGFR,FER,fib,Glucose,HB,HBA1c,LDH,PCT,PLT,trig,trop,FBCLymph,FBCNeutr,FBCWCC,FBCNLR,ClotAPTT,ClotPT,poctLAC,O2,CO2,poctpH)
+
+for (variable in variables){
+  total <- merge(total,variable, all.x=TRUE)
+}
+
+```
+
+
+# Check values against ranges and create normal/abnormal binary column
+This is done here because many values depend on age and gender, so more convenient. 
+
+```{r}
+totalBinary <- total
+
+# BE
+totalBinary$BE_val[totalBinary$BE_val < 22 | totalBinary$BE_val > 29] <- "Abnormal"
+totalBinary$BE_val[!totalBinary$BE_val == "Abnormal"] <- "Normal"
+
+# BNP
+# Men under 70
+totalBinary$BNP_val[totalBinary$Gender == "M" & totalBinary$Age < 70 & totalBinary$BNP_val >= 100] <- "Abnormal"
+totalBinary$BNP_val[totalBinary$Gender == "M" & totalBinary$Age < 70 & totalBinary$BNP_val < 100] <- "Normal"
+# Women under 70
+totalBinary$BNP_val[totalBinary$Gender == "F" & totalBinary$Age < 70 & totalBinary$BNP_val >= 150] <- "Abnormal"
+totalBinary$BNP_val[totalBinary$Gender == "F" & totalBinary$Age < 70 & totalBinary$BNP_val < 150] <- "Normal"
+# All 70 and over
+totalBinary$BNP_val[totalBinary$Age >= 70 & totalBinary$BNP_val >= 300] <- "Abnormal"
+totalBinary$BNP_val[totalBinary$Age >= 70 & totalBinary$BNP_val < 300] <- "Normal"
+
+# APTT
+totalBinary$APTT_val[totalBinary$APTT_val >= 33] <- "Abnormal"
+totalBinary$APTT_val[!totalBinary$APTT_val == "Abnormal"] <- "Normal"
+
+# PT
+totalBinary$PT_val[totalBinary$PT_val >= 13] <- "Abnormal"
+totalBinary$PT_val[!totalBinary$PT_val == "Abnormal"] <- "Normal"
+
+# CO2
+totalBinary$CO2_val[totalBinary$CO2_val < 4.6 | totalBinary$CO2_val >= 6.4] <- "Abnormal"
+totalBinary$CO2_val[!totalBinary$CO2_val == "Abnormal"] <- "Normal"
+
+# O2
+totalBinary$O2_val[totalBinary$O2_val < 11 | totalBinary$O2_val >= 14.4] <- "Abnormal"
+totalBinary$O2_val[!totalBinary$O2_val == "Abnormal"] <- "Normal"
+
+# CRP
+totalBinary$CRP_val[totalBinary$CRP_val >= 6] <- "Abnormal"
+totalBinary$CRP_val[!totalBinary$CRP_val == "Abnormal"] <- "Normal"
+
+# DDM
+# Age < 60
+totalBinary$DDM_val[totalBinary$Age <= 60 & totalBinary$DDM_val >= 500] <- "Abnormal"
+totalBinary$DDM_val[totalBinary$Age <= 60 & totalBinary$DDM_val < 500] <- "Normal"
+# Age 61-70
+totalBinary$DDM_val[totalBinary$Age > 60 & totalBinary$Age <= 70 & totalBinary$DDM_val >= 600] <- "Abnormal"
+totalBinary$DDM_val[totalBinary$Age > 60 & totalBinary$Age <= 70 & totalBinary$DDM_val < 600] <- "Normal"
+# Age 71-80
+totalBinary$DDM_val[totalBinary$Age > 70 & totalBinary$Age <= 80 & totalBinary$DDM_val >= 700] <- "Abnormal"
+totalBinary$DDM_val[totalBinary$Age > 70 & totalBinary$Age <= 80 & totalBinary$DDM_val < 700] <- "Normal"
+# Age 61-90
+totalBinary$DDM_val[totalBinary$Age > 80 & totalBinary$Age <= 90 & totalBinary$DDM_val >= 800] <- "Abnormal"
+totalBinary$DDM_val[totalBinary$Age > 80 & totalBinary$Age <= 90 & totalBinary$DDM_val < 800] <- "Normal"
+# Age > 90
+totalBinary$DDM_val[totalBinary$Age > 90 & totalBinary$DDM_val >= 900] <- "Abnormal"
+totalBinary$DDM_val[totalBinary$Age > 90 & totalBinary$DDM_val < 900] <- "Normal"
+
+# eGFR
+totalBinary$eGFR_val[totalBinary$eGFR_val <= 90] <- "Abnormal"
+totalBinary$eGFR_val[!totalBinary$eGFR_val == "Abnormal"] <- "Normal"
+
+# Lymphocytes
+totalBinary$Lymphocytes[totalBinary$Lymphocytes < 1.5 | totalBinary$Lymphocytes > 4.5] <- "Abnormal"
+totalBinary$Lymphocytes[!totalBinary$Lymphocytes == "Abnormal"] <- "Normal"
+
+# Neutrophils
+totalBinary$Neutrophils[totalBinary$Neutrophils < 2 | totalBinary$Neutrophils > 7.5] <- "Abnormal"
+totalBinary$Neutrophils[!totalBinary$Neutrophils == "Abnormal"] <- "Normal"
+
+# NLR
+totalBinary$NLR_val[totalBinary$NLR_val < 0.78 | totalBinary$NLR_val > 3.53] <- "Abnormal"
+totalBinary$NLR_val[!totalBinary$NLR_val == "Abnormal"] <- "Normal"
+
+# White Cell Count
+totalBinary$WCC[totalBinary$WCC < 4 | totalBinary$WCC > 11] <- "Abnormal"
+totalBinary$WCC[!totalBinary$WCC == "Abnormal"] <- "Normal"
+
+# FER
+# Men
+totalBinary$FER_val[totalBinary$Gender == "M" & (totalBinary$FER_val < 33 | totalBinary$FER_val > 490)] <- "Abnormal"
+totalBinary$FER_val[totalBinary$Gender == "M" & totalBinary$FER_val != "Abnormal"] <- "Normal"
+# Women 0-44
+totalBinary$FER_val[totalBinary$Gender == "F" & totalBinary$Age < 45 & (totalBinary$FER_val < 15 | totalBinary$FER_val > 445)] <- "Abnormal"
+totalBinary$FER_val[totalBinary$Gender == "F" & totalBinary$Age < 45 & totalBinary$FER_val != "Abnormal"] <- "Normal"
+# Women 45+
+totalBinary$FER_val[totalBinary$Gender == "F" & totalBinary$Age >= 45 & (totalBinary$FER_val < 30 | totalBinary$FER_val > 470)] <- "Abnormal"
+totalBinary$FER_val[totalBinary$Gender == "F" & totalBinary$Age >= 45 & totalBinary$FER_val != "Abnormal"] <- "Normal"
+
+# Fib
+totalBinary$fib_val[totalBinary$fib_val < 1.8 | totalBinary$fib_val > 4] <- "Abnormal"
+totalBinary$fib_val[!totalBinary$fib_val == "Abnormal"] <- "Normal"
+
+# Glucose
+totalBinary$Glucose_val[totalBinary$Glucose_val < 3 | totalBinary$Glucose_val > 7.8] <- "Abnormal"
+totalBinary$Glucose_val[!totalBinary$Glucose_val == "Abnormal"] <- "Normal"
+
+# HB
+# Men
+totalBinary$HB_val[totalBinary$Gender == "M" & (totalBinary$HB_val < 130 | totalBinary$HB_val > 170)] <- "Abnormal"
+totalBinary$HB_val[totalBinary$Gender == "M" & totalBinary$HB_val != "Abnormal"] <- "Normal"
+# Women
+totalBinary$HB_val[totalBinary$Gender == "F" & (totalBinary$HB_val < 120 | totalBinary$HB_val > 150)] <- "Abnormal"
+totalBinary$HB_val[totalBinary$Gender == "F" & totalBinary$HB_val != "Abnormal"] <- "Normal"
+
+# HBA1c
+totalBinary$HBA1c_val[totalBinary$HBA1c_val >= 48 ] <- "Abnormal"
+totalBinary$HBA1c_val[!totalBinary$HBA1c_val == "Abnormal"] <- "Normal"
+
+# LDH
+totalBinary$LDH_val[totalBinary$LDH_val < 240 | totalBinary$LDH_val > 480] <- "Abnormal"
+totalBinary$LDH_val[!totalBinary$LDH_val == "Abnormal"] <- "Normal"
+
+# PLT
+totalBinary$PLT_val[totalBinary$PLT_val < 150 | totalBinary$PLT_val > 450] <- "Abnormal"
+totalBinary$PLT_val[!totalBinary$PLT_val == "Abnormal"] <- "Normal"
+
+# PCT
+totalBinary$PCT_val[totalBinary$PCT_val >= 0.05] <- "Abnormal"
+totalBinary$PCT_val[!totalBinary$PCT_val == "Abnormal"] <- "Normal"
+
+# Lactate
+totalBinary$poctLAC_val[totalBinary$poctLAC_val < 0.5 | totalBinary$poctLAC_val > 2.2] <- "Abnormal"
+totalBinary$poctLAC_val[!totalBinary$poctLAC_val == "Abnormal"] <- "Normal"
+
+# pH
+totalBinary$poctpH_val[totalBinary$poctpH_val < 7.35 | totalBinary$poctpH_val > 7.45] <- "Abnormal"
+totalBinary$poctpH_val[!totalBinary$poctpH_val == "Abnormal"] <- "Normal"
+
+# trig
+totalBinary$trig_val[totalBinary$trig_val < 0.5 | totalBinary$trig_val > 1.7] <- "Abnormal"
+totalBinary$trig_val[!totalBinary$trig_val == "Abnormal"] <- "Normal"
+
+# trop
+totalBinary$trop_val[totalBinary$trop_val >= 14] <- "Abnormal"
+totalBinary$trop_val[!totalBinary$trop_val == "Abnormal"] <- "Normal"
+```
+
+
+# Missingness
+
+```{r}
+drop <- c("ID","admissionDate","dischargeDate","Gender","Age","died","went_to_icu","severeOutcome")
+missingData = totalBinary[,!(names(totalBinary) %in% drop)]
+missingData %>% ff_glimpse()
+missingData %>% missing_plot()
+```
+
