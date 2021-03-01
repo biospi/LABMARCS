@@ -28,6 +28,8 @@ library(naniar)
 library(gridExtra)
 library(knitr)
 library(finalfit)
+library(data.table)
+
 ```
 # Global variables
 ```{r}
@@ -316,6 +318,8 @@ eGFR = eGFR %>%
   rename(
     eGFR_val = Numeric.Result
   )
+
+eGFR$eGFR_val[eGFR$Result..Not.Large.=='>90'] <- 90.1
 
 eGFR = eGFR %>% select(ID,date,eGFR_val)
 
@@ -1524,5 +1528,74 @@ drop <- c("ID","admissionDate","dischargeDate","Gender","Age","died","went_to_ic
 missingData = totalBinary[,!(names(totalBinary) %in% drop)]
 missingData %>% ff_glimpse()
 missingData %>% missing_plot()
+```
+
+# Number of people who have multiple admissions
+
+```{r}
+duplicates <- setDT(totalOutcomes)[, .N, ID]
+for (i in (1:10)){
+  print(i)
+  print(nrow(duplicates[N==i]))
+}
+
+```
+# Number of people without any outcomes info
+```{r}
+allIDs <- (unique(Vir$ID))
+allAdmissionIDs <- (unique(totalOutcomes$ID))
+
+missingAdmissionIDs <- setdiff(allIDs,allAdmissionIDs)
+length(missingAdmissionIDs)
+
+```
+
+# Missing discharge info
+```{r}
+# Those that were discharged
+a <- (totalOutcomes %>% filter(!is.na(totalOutcomes$dischargeDate)))$ID
+# Those that died
+b <- (totalOutcomes %>% filter(!is.na(totalOutcomes$deathDate)))$ID
+
+# Those that were discharged or died
+c <- union(a,b)
+
+# Those that neither died nor were discharged
+missingDischarge <- setdiff(allAdmissionIDs, c)
+length(missingDischarge)
+
+# All IDs with complete admissions information
+allCompleteAdmissionIDs <- setdiff(allAdmissionIDs, missingDischarge)
+length(allCompleteAdmissionIDs)
+
+```
+# All those who went immediately to ICU
+```{r}
+# How many people went to ICU? 
+icu_num <- length(unique(totalOutcomes %>% filter(!is.na(ITU_Start)))$ID)
+print(icu_num)
+
+immediateICU <- totalOutcomes %>% filter(!is.na(ITU_Start) & (ITU_Start == admissionDate))
+length(unique(immediateICU$ID))
+
+
+```
+# What proportion of patients stayed longer than a week?
+893 patients with complete admissions info. 
+```{r}
+# Stayed longer than a week
+nrow(totalOutcomes[lengthOfStay >= 7])
+
+# Stayed longer than 2 weeks 
+nrow(totalOutcomes[lengthOfStay >= 14])
+
+```
+
+```{r}
+write.csv(x=missingDischarge, file="C:/Users/gq19765/OneDrive - University of Bristol/Documents/ICU PhD/LABMARCS/Data/missingDischargeIDs.csv")
+```
+
+```{r}
+
 ```
 
