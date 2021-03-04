@@ -136,595 +136,6 @@ WestonOutcomes2 = WestonOutcomes %>% select(ID,admissionDate,dischargeDate,ITU_S
 ```
 
 
-
-
-
-### Load variable data
-#### BE - Bicarbonate Excess
-
-```{r}
-BE <- read.csv(file("BE.csv"))
-BE$Date.Booked.In = as.Date(BE$Date.Booked.In, format="%d/%m/%Y")
-BE = BE %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-BE = BE %>%
-  rename(
-    BE_val = Numeric.Result
-  )
-
-BE = BE %>% select(ID,date,BE_val)
-
-BE <- BE[complete.cases(BE),]
-
-BE2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "BE_val")
-colnames(BE2) <- x
-
-
-for (id in unique(BE$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = BE[BE$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(BE[BE$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$BE_val)
-  nRow <- data.frame(ID=id,BE_val=avg)
-  BE2 <- rbind(BE2,nRow)
-}
-
-BE <- BE2
-rm(BE2)
-
-```
-
-#### BNP - B-type natriuretic peptide
-
-```{r}
-BNP <- read.csv(file("BNP.csv"))
-BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format="%d/%m/%Y")
-BNP = BNP %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-BNP = BNP %>%
-  rename(
-    BNP_val = Numeric.Result
-  )
-
-BNP = BNP %>% select(ID,date,BNP_val)
-
-BNP <- BNP[complete.cases(BNP),]
-
-BNP2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "BNP_val")
-colnames(BNP2) <- x
-
-for (id in unique(BNP$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = BNP[BNP$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(BNP[BNP$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$BNP_val)
-  nRow <- data.frame(ID=id,BNP_val=avg)
-  BNP2 <- rbind(BNP2,nRow)
-}
-
-BNP <- BNP2
-rm(BNP2)
-
-```
-
-#### CRP - C-Reactive Protein
-
-```{r}
-CRP <- read.csv(file("CRP.csv"))
-CRP$Date.Booked.In = as.Date(CRP$Date.Booked.In, format="%d/%m/%Y")
-CRP = CRP %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-CRP = CRP %>%
-  rename(
-    CRP_val = Numeric.Result
-  )
-
-CRP = CRP %>% select(ID,date,CRP_val)
-
-CRP <- CRP[complete.cases(CRP),]
-
-CRP2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "CRP_val")
-colnames(CRP2) <- x
-
-for (id in unique(CRP$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = CRP[CRP$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(CRP[CRP$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$CRP_val)
-  nRow <- data.frame(ID=id,CRP_val=avg)
-  CRP2 <- rbind(CRP2,nRow)
-}
-
-CRP <- CRP2
-rm(CRP2)
-
-```
-
-#### CovidCT - Cycle Threshold (CT) value of PCR for COVID
-
-```{r}
-CovidCT <- read.csv(file("CovidCT.csv"))
-CovidCT['Measure']='CovidCT'
-CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
-CovidCT = CovidCT %>% 
-  rename(
-    date = Specimen.Date,
-  )
-```
-
-#### DDM - D-Dimer 
-
-```{r}
-DDM <- read.csv(file("DDM.csv"))
-DDM$Date.Booked.In = as.Date(DDM$Date.Booked.In, format="%d/%m/%Y")
-DDM = DDM %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-DDM = DDM %>%
-  rename(
-    DDM_val = Numeric.Result
-  )
-
-DDM = DDM %>% select(ID,date,DDM_val)
-
-DDM <- DDM[complete.cases(DDM),]
-
-DDM2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "DDM_val")
-colnames(DDM2) <- x
-
-for (id in unique(DDM$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = DDM[DDM$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(DDM[DDM$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$DDM_val)
-  nRow <- data.frame(ID=id,DDM_val=avg)
-  DDM2 <- rbind(DDM2,nRow)
-}
-
-DDM <- DDM2
-rm(DDM2)
-
-```
-
-#### eGFR - Estimated Glomerular Filtration Rate
-
-```{r}
-eGFR <- read.csv(file("eGFR.csv"))
-eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
-eGFR = eGFR %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-eGFR = eGFR %>%
-  rename(
-    eGFR_val = Numeric.Result
-  )
-
-eGFR$eGFR_val[eGFR$Result..Not.Large.=='>90'] <- 90.1
-
-eGFR = eGFR %>% select(ID,date,eGFR_val)
-
-eGFR <- eGFR[complete.cases(eGFR),]
-
-eGFR2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "eGFR_val")
-colnames(eGFR2) <- x
-
-for (id in unique(eGFR$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = eGFR[eGFR$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(eGFR[eGFR$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$eGFR_val)
-  nRow <- data.frame(ID=id,eGFR_val=avg)
-  eGFR2 <- rbind(eGFR2,nRow)
-}
-
-eGFR <- eGFR2
-rm(eGFR2)
-
-```
-
-#### FER - Ferritin
-
-```{r}
-FER <- read.csv(file("FER.csv"))
-FER$Date.Booked.In = as.Date(FER$Date.Booked.In, format="%d/%m/%Y")
-FER = FER %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-FER = FER %>%
-  rename(
-    FER_val = Numeric.Result
-  )
-
-FER = FER %>% select(ID,date,FER_val)
-
-FER <- FER[complete.cases(FER),]
-
-FER2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "FER_val")
-colnames(FER2) <- x
-
-for (id in unique(FER$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = FER[FER$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(FER[FER$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$FER_val)
-  nRow <- data.frame(ID=id,FER_val=avg)
-  FER2 <- rbind(FER2,nRow)
-}
-
-FER <- FER2
-rm(FER2)
-
-```
-
-#### Fib - Fibrinogen
-
-```{r}
-fib <- read.csv(file("fib.csv"))
-fib$Date.Booked.In = as.Date(fib$Date.Booked.In, format="%d/%m/%Y")
-fib = fib %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-fib = fib %>%
-  rename(
-    fib_val = Numeric.Result
-  )
-
-fib = fib %>% select(ID,date,fib_val)
-
-fib <- fib[complete.cases(fib),]
-
-fib2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "fib_val")
-colnames(fib2) <- x
-
-for (id in unique(fib$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = fib[fib$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(fib[fib$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$fib_val)
-  nRow <- data.frame(ID=id,fib_val=avg)
-  fib2 <- rbind(fib2,nRow)
-}
-
-fib <- fib2
-rm(fib2)
-
-```
-
-#### Glucose
-
-```{r}
-Glucose <- read.csv(file("Glucose.csv"))
-Glucose$Date.Booked.In = as.Date(Glucose$Date.Booked.In, format="%d/%m/%Y")
-Glucose = Glucose %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-Glucose = Glucose %>%
-  rename(
-    Glucose_val = Numeric.Result
-  )
-
-Glucose = Glucose %>% select(ID,date,Glucose_val)
-
-Glucose <- Glucose[complete.cases(Glucose),]
-
-Glucose2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "Glucose_val")
-colnames(Glucose2) <- x
-
-for (id in unique(Glucose$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = Glucose[Glucose$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(Glucose[Glucose$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$Glucose_val)
-  nRow <- data.frame(ID=id,Glucose_val=avg)
-  Glucose2 <- rbind(Glucose2,nRow)
-}
-
-Glucose <- Glucose2
-rm(Glucose2)
-
-```
-
-#### HB - Hemoglobin
-
-```{r}
-HB <- read.csv(file("HB.csv"))
-HB$Date.Booked.In = as.Date(HB$Date.Booked.In, format="%d/%m/%Y")
-HB = HB %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-HB = HB %>%
-  rename(
-    HB_val = Numeric.Result
-  )
-
-HB = HB %>% select(ID,date,HB_val)
-
-HB <- HB[complete.cases(HB),]
-
-HB2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "HB_val")
-colnames(HB2) <- x
-
-for (id in unique(HB$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = HB[HB$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(HB[HB$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$HB_val)
-  nRow <- data.frame(ID=id,HB_val=avg)
-  HB2 <- rbind(HB2,nRow)
-}
-
-HB <- HB2
-rm(HB2)
-
-```
-
-#### HBA1c - glycated haemoglobin
-
-```{r}
-HBA1c <- read.csv(file("HBA1c.csv"))
-HBA1c$Date.Booked.In = as.Date(HBA1c$Date.Booked.In, format="%d/%m/%Y")
-HBA1c = HBA1c %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-HBA1c = HBA1c %>%
-  rename(
-    HBA1c_val = Numeric.Result
-  )
-
-HBA1c = HBA1c %>% select(ID,date,HBA1c_val)
-
-HBA1c <- HBA1c[complete.cases(HBA1c),]
-
-HBA1c2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "HBA1c_val")
-colnames(HBA1c2) <- x
-
-for (id in unique(HBA1c$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = HBA1c[HBA1c$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(HBA1c[HBA1c$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$HBA1c_val)
-  nRow <- data.frame(ID=id,HBA1c_val=avg)
-  HBA1c2 <- rbind(HBA1c2,nRow)
-}
-
-HBA1c <- HBA1c2
-rm(HBA1c2)
-
-```
-
-#### LDH - Lactate dehydrogenase
-
-```{r}
-LDH <- read.csv(file("LDH.csv"))
-LDH$Date.Booked.In = as.Date(LDH$Date.Booked.In, format="%d/%m/%Y")
-LDH = LDH %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-LDH = LDH %>%
-  rename(
-    LDH_val = Numeric.Result
-  )
-
-LDH = LDH %>% select(ID,date,LDH_val)
-
-LDH <- LDH[complete.cases(LDH),]
-
-LDH2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "LDH_val")
-colnames(LDH2) <- x
-
-for (id in unique(LDH$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = LDH[LDH$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(LDH[LDH$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$LDH_val)
-  nRow <- data.frame(ID=id,LDH_val=avg)
-  LDH2 <- rbind(LDH2,nRow)
-}
-
-LDH <- LDH2
-rm(LDH2)
-
-```
-
-#### PCT - Procalcitonin 
-
-```{r}
-PCT <- read.csv(file("PCT.csv"))
-PCT$Date.Booked.In = as.Date(PCT$Date.Booked.In, format="%d/%m/%Y")
-PCT = PCT %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-PCT = PCT %>%
-  rename(
-    PCT_val = Numeric.Result
-  )
-
-PCT = PCT %>% select(ID,date,PCT_val)
-
-PCT <- PCT[complete.cases(PCT),]
-
-PCT2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "PCT_val")
-colnames(PCT2) <- x
-
-for (id in unique(PCT$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = PCT[PCT$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(PCT[PCT$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$PCT_val)
-  nRow <- data.frame(ID=id,PCT_val=avg)
-  PCT2 <- rbind(PCT2,nRow)
-}
-
-PCT <- PCT2
-rm(PCT2)
-
-```
-
-#### PLT - Platelet Count
-
-```{r}
-PLT <- read.csv(file("PLT.csv"))
-PLT$Date.Booked.In = as.Date(PLT$Date.Booked.In, format="%d/%m/%Y")
-PLT = PLT %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-PLT = PLT %>%
-  rename(
-    PLT_val = Numeric.Result
-  )
-
-PLT = PLT %>% select(ID,date,PLT_val)
-
-PLT <- PLT[complete.cases(PLT),]
-
-PLT2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "PLT_val")
-colnames(PLT2) <- x
-
-for (id in unique(PLT$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = PLT[PLT$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(PLT[PLT$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$PLT_val)
-  nRow <- data.frame(ID=id,PLT_val=avg)
-  PLT2 <- rbind(PLT2,nRow)
-}
-
-PLT <- PLT2
-rm(PLT2)
-
-```
-
-#### Trig - Triglycerides
-
-```{r}
-trig <- read.csv(file("trig.csv"))
-trig$Date.Booked.In = as.Date(trig$Date.Booked.In, format="%d/%m/%Y")
-trig = trig %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-trig = trig %>%
-  rename(
-    trig_val = Numeric.Result
-  )
-
-trig = trig %>% select(ID,date,trig_val)
-
-trig <- trig[complete.cases(trig),]
-
-trig2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "trig_val")
-colnames(trig2) <- x
-
-for (id in unique(trig$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = trig[trig$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(trig[trig$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$trig_val)
-  nRow <- data.frame(ID=id,trig_val=avg)
-  trig2 <- rbind(trig2,nRow)
-}
-
-trig <- trig2
-rm(trig2)
-
-```
-
-#### Trop - Troponin
-
-```{r}
-trop <- read.csv(file("trop.csv"))
-trop$Date.Booked.In = as.Date(trop$Date.Booked.In, format="%d/%m/%Y")
-trop = trop %>% 
-  rename(
-    date = Date.Booked.In,
-  )
-trop = trop %>%
-  rename(
-    trop_val = Numeric.Result
-  )
-
-trop = trop %>% select(ID,date,trop_val)
-
-trop <- trop[complete.cases(trop),]
-
-trop2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "trop_val")
-colnames(trop2) <- x
-
-for (id in unique(trop$ID)){
-    # Return all values for the admission date for this ID
-    # Find the average value for these dates
-    # Store in new table for that variable where we have one value per date per
-  idDates = trop[trop$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(trop[trop$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$trop_val)
-  nRow <- data.frame(ID=id,trop_val=avg)
-  trop2 <- rbind(trop2,nRow)
-}
-
-trop <- trop2
-rm(trop2)
-
-```
-
 #### Vir - Virology
 
 ```{r}
@@ -777,6 +188,688 @@ Vir = Vir %>%
   )
 ```
 
+## Merge Outcome data
+
+```{r}
+# Merge outcomes data
+totalOutcomes <- rbind(UHB_outcomes12,UHB_outcomes22,NBT_outcomes2,WestonOutcomes2) # NBT Outcomes must be excluded as inconsistent
+totalOutcomes$deathDate = as.Date(totalOutcomes$deathDate, format="%d/%m/%Y")
+totalOutcomes$ITU_Start = as.Date(totalOutcomes$ITU_Start, format="%d/%m/%Y")
+totalOutcomes$ITU_End = as.Date(totalOutcomes$ITU_End, format="%d/%m/%Y")
+totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format="%d/%m/%Y")
+```
+
+
+## Demographics Table
+Age and gender for every individual
+
+```{r}
+dem = Vir %>%
+  distinct(ID, .keep_all = TRUE)
+dem = dem %>%
+  select(ID,Gender,Age)
+```
+
+
+## Merge outcomes with demographics
+
+```{r}
+total = merge(totalOutcomes,dem, by="ID")
+```
+
+
+### Those that have died
+```{r}
+deceasedSubset = subset(total, !is.na(total$deathDate))
+deceasedSubset$died = TRUE
+```
+
+### Add new column for died / didn't die to total
+```{r}
+total = merge(total,deceasedSubset, all.x=TRUE)
+total$died[is.na(total$died)] <- FALSE
+
+```
+
+### Those that went to ICU
+```{r}
+ICU_subset = subset(totalOutcomes, !is.na(totalOutcomes$ITU_Start))
+ICU_subset$went_to_icu = TRUE
+
+```
+
+
+### Add new column for went to ICU / didn't go to ICU
+```{r}
+total = merge(total,ICU_subset, all.x=TRUE)
+total$went_to_icu[is.na(total$went_to_icu)] <- FALSE
+```
+
+
+### Died or went to ICU
+```{r}
+total$severeOutcome[total$went_to_icu == TRUE | total$died == TRUE] <- TRUE
+total$severeOutcome[is.na(total$severeOutcome)] <- FALSE
+```
+
+## Add FIRST covid-positive date
+- Find first covid-positive test and add as new column
+- Select only ID and positive date
+- Remove duplicates
+- Add to total outcomes
+```{r}
+CovidCT <- read.csv(file("CovidCT.csv"))
+CovidCT['Measure']='CovidCT'
+CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
+CovidCT = CovidCT %>% 
+  rename(
+    date = Specimen.Date,
+  )
+
+uniqueIDs = unique(CovidCT$ID)
+CovidCT['positiveDate'] <- as.Date(NA)
+
+
+for (i in uniqueIDs){
+  for (j in length(CovidCT$date[CovidCT$ID == i])){
+      CovidCT[CovidCT$ID == i,]$positiveDate <- as.Date(CovidCT[CovidCT$ID == i,]$date[1], format="%d%m%Y")
+  }
+}
+
+CovidCT <- CovidCT %>% select(ID,positiveDate) %>% distinct()
+
+total <- left_join(total,CovidCT)
+
+```
+
+# Only keep first admission
+```{r}
+
+```
+
+
+
+
+### Load variable data
+#### BE - Bicarbonate Excess
+
+```{r}
+BE <- read.csv(file("BE.csv"))
+BE$Date.Booked.In = as.Date(BE$Date.Booked.In, format="%d/%m/%Y")
+BE = BE %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BE = BE %>%
+  rename(
+    BE_val = Numeric.Result
+  )
+
+BE = BE %>% select(ID,date,BE_val)
+
+BE <- BE[complete.cases(BE),]
+
+BE2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "BE_val")
+colnames(BE2) <- x
+
+
+for (id in (unique(BE$ID))){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = BE[BE$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(BE[BE$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$BE_val,na.rm=TRUE)
+  BE2 <- BE2 %>% add_row(ID=id,BE_val=avg)
+
+}
+
+BE <- BE2
+rm(BE2)
+
+```
+
+#### BNP - B-type natriuretic peptide
+
+```{r}
+BNP <- read.csv(file("BNP.csv"))
+BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format="%d/%m/%Y")
+BNP = BNP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BNP = BNP %>%
+  rename(
+    BNP_val = Numeric.Result
+  )
+
+BNP = BNP %>% select(ID,date,BNP_val)
+
+BNP <- BNP[complete.cases(BNP),]
+
+BNP2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "BNP_val")
+colnames(BNP2) <- x
+
+for (id in unique(BNP$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = BNP[BNP$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(BNP[BNP$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$BNP_val,na.rm=TRUE)
+  BNP2 <- BNP2 %>% add_row(ID=id,BNP_val=avg)
+}
+
+BNP <- BNP2
+rm(BNP2)
+
+```
+
+#### CRP - C-Reactive Protein
+
+```{r}
+CRP <- read.csv(file("CRP.csv"))
+CRP$Date.Booked.In = as.Date(CRP$Date.Booked.In, format="%d/%m/%Y")
+CRP = CRP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+CRP = CRP %>%
+  rename(
+    CRP_val = Numeric.Result
+  )
+
+CRP = CRP %>% select(ID,date,CRP_val)
+
+CRP <- CRP[complete.cases(CRP),]
+
+CRP2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "CRP_val")
+colnames(CRP2) <- x
+
+for (id in unique(CRP$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = CRP[CRP$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(CRP[CRP$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$CRP_val,na.rm=TRUE)
+  CRP2 <- CRP2 %>% add_row(ID=id,CRP_val=avg)
+
+}
+
+CRP <- CRP2
+rm(CRP2)
+
+```
+
+#### CovidCT - Cycle Threshold (CT) value of PCR for COVID
+
+```{r}
+
+```
+
+#### DDM - D-Dimer 
+
+```{r}
+DDM <- read.csv(file("DDM.csv"))
+DDM$Date.Booked.In = as.Date(DDM$Date.Booked.In, format="%d/%m/%Y")
+DDM = DDM %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+DDM = DDM %>%
+  rename(
+    DDM_val = Numeric.Result
+  )
+
+DDM = DDM %>% select(ID,date,DDM_val)
+
+DDM <- DDM[complete.cases(DDM),]
+
+DDM2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "DDM_val")
+colnames(DDM2) <- x
+
+for (id in unique(DDM$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = DDM[DDM$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(DDM[DDM$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$DDM_val,na.rm=TRUE)
+  DDM2 <- DDM2 %>% add_row(ID=id,DDM_val=avg)
+}
+
+DDM <- DDM2
+rm(DDM2)
+
+```
+
+#### eGFR - Estimated Glomerular Filtration Rate
+
+```{r}
+eGFR <- read.csv(file("eGFR.csv"))
+eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
+eGFR = eGFR %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+eGFR = eGFR %>%
+  rename(
+    eGFR_val = Numeric.Result
+  )
+
+eGFR$eGFR_val[eGFR$Result..Not.Large.=='>90'] <- 90.1
+
+eGFR = eGFR %>% select(ID,date,eGFR_val)
+
+eGFR <- eGFR[complete.cases(eGFR),]
+
+eGFR2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "eGFR_val")
+colnames(eGFR2) <- x
+
+for (id in unique(eGFR$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = eGFR[eGFR$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(eGFR[eGFR$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$eGFR_val,na.rm=TRUE)
+  eGFR2 <- eGFR2 %>% add_row(ID=id,eGFR_val=avg)
+
+}
+
+eGFR <- eGFR2
+rm(eGFR2)
+
+```
+
+#### FER - Ferritin
+
+```{r}
+FER <- read.csv(file("FER.csv"))
+FER$Date.Booked.In = as.Date(FER$Date.Booked.In, format="%d/%m/%Y")
+FER = FER %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+FER = FER %>%
+  rename(
+    FER_val = Numeric.Result
+  )
+
+FER = FER %>% select(ID,date,FER_val)
+
+FER <- FER[complete.cases(FER),]
+
+FER2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "FER_val")
+colnames(FER2) <- x
+
+for (id in unique(FER$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = FER[FER$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(FER[FER$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$FER_val,na.rm=TRUE)
+  nRow <- data.frame(ID=id,FER_val=avg)
+  FER2 <- FER2 %>% add_row(ID=id,FER_val=avg)
+}
+
+FER <- FER2
+rm(FER2)
+
+```
+
+#### Fib - Fibrinogen
+
+```{r}
+fib <- read.csv(file("fib.csv"))
+fib$Date.Booked.In = as.Date(fib$Date.Booked.In, format="%d/%m/%Y")
+fib = fib %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+fib = fib %>%
+  rename(
+    fib_val = Numeric.Result
+  )
+
+fib = fib %>% select(ID,date,fib_val)
+
+fib <- fib[complete.cases(fib),]
+
+fib2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "fib_val")
+colnames(fib2) <- x
+
+for (id in unique(fib$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = fib[fib$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(fib[fib$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$fib_val,na.rm=TRUE)
+  fib2 <- fib2 %>% add_row(ID=id,fib_val=avg)
+
+}
+
+fib <- fib2
+rm(fib2)
+
+```
+
+#### Glucose
+
+```{r}
+Glucose <- read.csv(file("Glucose.csv"))
+Glucose$Date.Booked.In = as.Date(Glucose$Date.Booked.In, format="%d/%m/%Y")
+Glucose = Glucose %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+Glucose = Glucose %>%
+  rename(
+    Glucose_val = Numeric.Result
+  )
+
+Glucose = Glucose %>% select(ID,date,Glucose_val)
+
+Glucose <- Glucose[complete.cases(Glucose),]
+
+Glucose2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "Glucose_val")
+colnames(Glucose2) <- x
+
+for (id in unique(Glucose$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = Glucose[Glucose$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(Glucose[Glucose$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$Glucose_val,na.rm=TRUE)
+  Glucose2 <- Glucose2 %>% add_row(ID=id,Glucose_val=avg)
+
+}
+
+Glucose <- Glucose2
+rm(Glucose2)
+
+```
+
+#### HB - Hemoglobin
+
+```{r}
+HB <- read.csv(file("HB.csv"))
+HB$Date.Booked.In = as.Date(HB$Date.Booked.In, format="%d/%m/%Y")
+HB = HB %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+HB = HB %>%
+  rename(
+    HB_val = Numeric.Result
+  )
+
+HB = HB %>% select(ID,date,HB_val)
+
+HB <- HB[complete.cases(HB),]
+
+HB2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "HB_val")
+colnames(HB2) <- x
+
+for (id in unique(HB$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = HB[HB$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(HB[HB$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$HB_val,na.rm=TRUE)
+  HB2 <- HB2 %>% add_row(ID=id,HB_val=avg)
+
+}
+
+HB <- HB2
+rm(HB2)
+
+```
+
+#### HBA1c - glycated haemoglobin
+
+```{r}
+HBA1c <- read.csv(file("HBA1c.csv"))
+HBA1c$Date.Booked.In = as.Date(HBA1c$Date.Booked.In, format="%d/%m/%Y")
+HBA1c = HBA1c %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+HBA1c = HBA1c %>%
+  rename(
+    HBA1c_val = Numeric.Result
+  )
+
+HBA1c = HBA1c %>% select(ID,date,HBA1c_val)
+
+HBA1c <- HBA1c[complete.cases(HBA1c),]
+
+HBA1c2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "HBA1c_val")
+colnames(HBA1c2) <- x
+
+for (id in unique(HBA1c$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = HBA1c[HBA1c$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(HBA1c[HBA1c$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$HBA1c_val,na.rm=TRUE)
+  HBA1c2 <- HBA1c2 %>% add_row(ID=id,HBA1c_val=avg)
+
+}
+
+HBA1c <- HBA1c2
+rm(HBA1c2)
+
+```
+
+#### LDH - Lactate dehydrogenase
+
+```{r}
+LDH <- read.csv(file("LDH.csv"))
+LDH$Date.Booked.In = as.Date(LDH$Date.Booked.In, format="%d/%m/%Y")
+LDH = LDH %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+LDH = LDH %>%
+  rename(
+    LDH_val = Numeric.Result
+  )
+
+LDH = LDH %>% select(ID,date,LDH_val)
+
+LDH <- LDH[complete.cases(LDH),]
+
+LDH2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "LDH_val")
+colnames(LDH2) <- x
+
+for (id in unique(LDH$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = LDH[LDH$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(LDH[LDH$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$LDH_val,na.rm=TRUE)
+  LDH2 <- LDH2 %>% add_row(ID=id,LDH_val=avg)
+
+}
+
+LDH <- LDH2
+rm(LDH2)
+
+```
+
+#### PCT - Procalcitonin 
+
+```{r}
+PCT <- read.csv(file("PCT.csv"))
+PCT$Date.Booked.In = as.Date(PCT$Date.Booked.In, format="%d/%m/%Y")
+PCT = PCT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+PCT = PCT %>%
+  rename(
+    PCT_val = Numeric.Result
+  )
+
+PCT = PCT %>% select(ID,date,PCT_val)
+
+PCT <- PCT[complete.cases(PCT),]
+
+PCT2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "PCT_val")
+colnames(PCT2) <- x
+
+for (id in unique(PCT$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = PCT[PCT$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(PCT[PCT$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$PCT_val,na.rm=TRUE)
+  PCT2 <- PCT2 %>% add_row(ID=id,PCT_val=avg)
+
+}
+
+PCT <- PCT2
+rm(PCT2)
+
+```
+
+#### PLT - Platelet Count
+
+```{r}
+PLT <- read.csv(file("PLT.csv"))
+PLT$Date.Booked.In = as.Date(PLT$Date.Booked.In, format="%d/%m/%Y")
+PLT = PLT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+PLT = PLT %>%
+  rename(
+    PLT_val = Numeric.Result
+  )
+
+PLT = PLT %>% select(ID,date,PLT_val)
+
+PLT <- PLT[complete.cases(PLT),]
+
+PLT2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "PLT_val")
+colnames(PLT2) <- x
+
+for (id in unique(PLT$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = PLT[PLT$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(PLT[PLT$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$PLT_val,na.rm=TRUE)
+  PLT2 <- PLT2 %>% add_row(ID=id,PLT_val=avg)
+
+}
+
+PLT <- PLT2
+rm(PLT2)
+
+```
+
+#### Trig - Triglycerides
+
+```{r}
+trig <- read.csv(file("trig.csv"))
+trig$Date.Booked.In = as.Date(trig$Date.Booked.In, format="%d/%m/%Y")
+trig = trig %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+trig = trig %>%
+  rename(
+    trig_val = Numeric.Result
+  )
+
+trig = trig %>% select(ID,date,trig_val)
+
+trig <- trig[complete.cases(trig),]
+
+trig2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "trig_val")
+colnames(trig2) <- x
+
+for (id in unique(trig$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = trig[trig$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(trig[trig$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$trig_val,na.rm=TRUE)
+  trig2 <- trig2 %>% add_row(ID=id,trig_val=avg)
+
+}
+
+trig <- trig2
+rm(trig2)
+
+```
+
+#### Trop - Troponin
+
+```{r}
+trop <- read.csv(file("trop.csv"))
+trop$Date.Booked.In = as.Date(trop$Date.Booked.In, format="%d/%m/%Y")
+trop = trop %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+trop = trop %>%
+  rename(
+    trop_val = Numeric.Result
+  )
+
+trop = trop %>% select(ID,date,trop_val)
+
+trop <- trop[complete.cases(trop),]
+
+trop2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "trop_val")
+colnames(trop2) <- x
+
+for (id in unique(trop$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = trop[trop$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(trop[trop$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$trop_val,na.rm=TRUE)
+  trop2 <- trop2 %>% add_row(ID=id,trop_val=avg)
+
+}
+
+trop <- trop2
+rm(trop2)
+
+```
+
+
+
 #### FBC - Full Blood Count
 Made up of:
 * Lymphocytes
@@ -814,10 +907,10 @@ for (id in unique(FBCLymph$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = FBCLymph[FBCLymph$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(FBCLymph[FBCLymph$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$Lymphocytes)
-  nRow <- data.frame(ID=id,Lymphocytes=avg)
-  FBCLymph2 <- rbind(FBCLymph2,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(FBCLymph[FBCLymph$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$Lymphocytes,na.rm=TRUE)
+  FBCLymph2 <- FBCLymph2 %>% add_row(ID=id,Lymphocytes=avg)
+
 }
 
 FBCLymph <- FBCLymph2
@@ -847,10 +940,10 @@ for (id in unique(FBCNeutr$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = FBCNeutr[FBCNeutr$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(FBCNeutr[FBCNeutr$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$Neutrophils)
-  nRow <- data.frame(ID=id,Neutrophils=avg)
-  FBCNeutr2 <- rbind(FBCNeutr2,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(FBCNeutr[FBCNeutr$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$Neutrophils,na.rm=TRUE)
+  FBCNeutr2 <- FBCNeutr2 %>% add_row(ID=id,Neutrophils=avg)
+
 }
 
 FBCNeutr <- FBCNeutr2
@@ -880,10 +973,10 @@ for (id in unique(FBCWCC$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = FBCWCC[FBCWCC$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(FBCWCC[FBCWCC$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$WCC)
-  nRow <- data.frame(ID=id,WCC=avg)
-  FBCWCC2 <- rbind(FBCWCC2,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(FBCWCC[FBCWCC$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$WCC,na.rm=TRUE)
+  FBCWCC2 <- FBCWCC2 %>% add_row(ID=id,WCC=avg)
+
 }
 
 FBCWCC <- FBCWCC2
@@ -913,10 +1006,10 @@ for (id in unique(FBCNLR$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = FBCNLR[FBCNLR$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(FBCNLR[FBCNLR$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$NLR_val)
-  nRow <- data.frame(ID=id,NLR_val=avg)
-  FBCNLR2 <- rbind(FBCNLR2,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(FBCNLR[FBCNLR$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$NLR_val,na.rm=TRUE)
+  FBCNLR2 <- FBCNLR2 %>% add_row(ID=id,NLR_val=avg)
+
 }
 
 FBCNLR <- FBCNLR2
@@ -971,10 +1064,10 @@ for (id in unique(ClotAPTT$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = ClotAPTT[ClotAPTT$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(ClotAPTT[ClotAPTT$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$APTT_val)
-  nRow <- data.frame(ID=id,APTT_val=avg)
-  ClotAPTT2 <- rbind(ClotAPTT2,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(ClotAPTT[ClotAPTT$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$APTT_val,na.rm=TRUE)
+  ClotAPTT2 <- ClotAPTT2 %>% add_row(ID=id,APTT_val=avg)
+
 }
 
 ClotAPTT <- ClotAPTT2
@@ -1002,10 +1095,10 @@ for (id in unique(ClotPT$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = ClotPT[ClotPT$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(ClotPT[ClotPT$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$PT_val)
-  nRow <- data.frame(ID=id,PT_val=avg)
-  ClotPT2 <- rbind(ClotPT2,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(ClotPT[ClotPT$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$PT_val,na.rm=TRUE)
+  ClotPT2 <- ClotPT2 %>% add_row(ID=id,PT_val=avg)
+
 }
 
 ClotPT <- ClotPT2
@@ -1094,10 +1187,9 @@ for (id in unique(poctLAC$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = poctLAC[poctLAC$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(poctLAC[poctLAC$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$poctLAC_val)
-  nRow <- data.frame(ID=id,poctLAC_val=avg)
-  poctLAC2 <- rbind(poctLAC2,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(poctLAC[poctLAC$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$poctLAC_val,na.rm=TRUE)
+  poctLAC2 <- poctLAC2 %>% add_row(ID=id,poctLAC_val=avg)
 }
 
 poctLAC <- poctLAC2
@@ -1146,10 +1238,10 @@ for (id in unique(O2$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = O2[O2$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(O2[O2$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$O2_val)
-  nRow <- data.frame(ID=id,O2_val=avg)
-  O22 <- rbind(O22,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(O2[O2$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$O2_val,na.rm=TRUE)
+  O22 <- O22 %>% add_row(ID=id,O2_val=avg)
+
 }
 
 O2 <- O22
@@ -1190,10 +1282,10 @@ for (id in unique(CO2$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = CO2[CO2$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(CO2[CO2$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$CO2_val)
-  nRow <- data.frame(ID=id,CO2_val=avg)
-  CO22 <- rbind(CO22,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(CO2[CO2$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$CO2_val,na.rm=TRUE)
+  CO22 <- CO22 %>% add_row(ID=id,CO2_val=avg)
+
 }
 
 CO2 <- CO22
@@ -1234,10 +1326,10 @@ for (id in unique(poctpH$ID)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = poctpH[poctpH$ID==id,]$date
-  idAdmission = idDates[1]
-  avg = mean(poctpH[poctpH$ID==id,][(idDates >= idAdmission & idDates < (idAdmission) + dateRange),]$poctpH_val)
-  nRow <- data.frame(ID=id,poctpH_val=avg)
-  poctpH2 <- rbind(poctpH2,nRow)
+  idPositive = total$positiveDate[total$ID==id][1]
+  avg = mean(poctpH[poctpH$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$poctpH_val,na.rm=TRUE)
+  poctpH2 <- poctpH2 %>% add_row(ID=id,poctpH_val=avg)
+
 }
 
 poctpH <- poctpH2
@@ -1305,69 +1397,7 @@ AvonCap = AvonCap %>%
 ```
 
 
-## Merge Outcome data
 
-```{r}
-# Merge outcomes data
-totalOutcomes <- rbind(UHB_outcomes12,UHB_outcomes22,NBT_outcomes2,WestonOutcomes2) # NBT Outcomes must be excluded as inconsistent
-totalOutcomes$deathDate = as.Date(totalOutcomes$deathDate, format="%d/%m/%Y")
-totalOutcomes$ITU_Start = as.Date(totalOutcomes$ITU_Start, format="%d/%m/%Y")
-totalOutcomes$ITU_End = as.Date(totalOutcomes$ITU_End, format="%d/%m/%Y")
-totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format="%d/%m/%Y")
-```
-
-
-## Demographics Table
-Age and gender for every individual
-
-```{r}
-dem = Vir %>%
-  distinct(ID, .keep_all = TRUE)
-dem = dem %>%
-  select(ID,Gender,Age)
-```
-
-
-## Merge outcomes with demographics
-
-```{r}
-total = merge(totalOutcomes,dem, by="ID")
-```
-
-
-### Those that have died
-```{r}
-deceasedSubset = subset(total, !is.na(total$deathDate))
-deceasedSubset$died = TRUE
-```
-
-### Add new column for died / didn't die to total
-```{r}
-total = merge(total,deceasedSubset, all.x=TRUE)
-total$died[is.na(total$died)] <- FALSE
-
-```
-
-### Those that went to ICU
-```{r}
-ICU_subset = subset(totalOutcomes, !is.na(totalOutcomes$ITU_Start))
-ICU_subset$went_to_icu = TRUE
-
-```
-
-
-### Add new column for went to ICU / didn't go to ICU
-```{r}
-total = merge(total,ICU_subset, all.x=TRUE)
-total$went_to_icu[is.na(total$went_to_icu)] <- FALSE
-```
-
-
-### Died or went to ICU
-```{r}
-total$severeOutcome[total$went_to_icu == TRUE | total$died == TRUE] <- TRUE
-total$severeOutcome[is.na(total$severeOutcome)] <- FALSE
-```
 
 
 # Merge values with total table by admission date
@@ -1384,6 +1414,32 @@ for (variable in variables){
 
 # Check values against ranges and create normal/abnormal binary column
 This is done here because many values depend on age and gender, so more convenient. 
+
+* BE (higher or lower) -  ambiguous
+* BNP (higher) -  clear
+* APTT (higher) -  clear
+* PT (higher) -  clear
+* CO2 (lower or higher) -  ambiguous
+* O2 (lower or higher) -  ambiguous
+* CRP (higher) -  clear
+* DDM (higher) -  clear
+* eGFR (lower) 0  clear
+* Lymphocytes (lower or higher) -  ambiguous
+* Neutrophils (lower or higher) -  ambiguous 
+* NLR (lower or higher) -  ambiguous
+* WCC (lower or higher) -  ambiguous
+* FER (lower or higher) -  ambiguous
+* fib (lower or higher) -  ambiguous
+* Glucose (lower or higher) -  ambiguous
+* HB (lower or higher) -  ambiguous
+* HBA1c (higher) -  clear
+* LDH (lower or higher) -  ambiguous
+* PCT (higher) -  clear
+* PLT (lower or higher) -  ambiguous
+* Lactate (higher) -  clear
+* pH (lower or higher) -  ambiguous
+* trig (lower or higher) -  ambiguous
+* trop (higher) -  clear
 
 ```{r}
 totalBinary <- total
@@ -1548,6 +1604,8 @@ allAdmissionIDs <- (unique(totalOutcomes$ID))
 missingAdmissionIDs <- setdiff(allIDs,allAdmissionIDs)
 length(missingAdmissionIDs)
 
+# Remove those without admission information
+totalBinary <- totalBinary %>% filter(!is.na(admissionDate))
 ```
 
 # Missing discharge info
@@ -1567,6 +1625,9 @@ length(missingDischarge)
 # All IDs with complete admissions information
 allCompleteAdmissionIDs <- setdiff(allAdmissionIDs, missingDischarge)
 length(allCompleteAdmissionIDs)
+
+# Remove those without discharge information
+totalBinary <- totalBinary %>% filter(!is.na(dischargeDate))
 
 ```
 # All those who went immediately to ICU
@@ -1590,6 +1651,19 @@ nrow(totalOutcomes[lengthOfStay >= 7])
 nrow(totalOutcomes[lengthOfStay >= 14])
 
 ```
+# Age less than 18
+```{r}
+# Remove those less than 18
+totalBinary <- totalBinary %>% filter(Age >= 18)
+
+```
+
+
+```{r}
+write.csv(x=totalBinary, file="totalBinary.csv")
+```
+
+
 
 ```{r}
 write.csv(x=missingDischarge, file="C:/Users/gq19765/OneDrive - University of Bristol/Documents/ICU PhD/LABMARCS/Data/missingDischargeIDs.csv")
