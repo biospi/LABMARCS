@@ -1115,42 +1115,7 @@ Antigen = Antigen %>%
   )
 ```
 
-#### BC
 
-```{r}
-BC <- read.csv(file("BC.csv"))
-BC['Measure']='BC'
-BC$Date.of.Specimen = as.Date(BC$Date.of.Specimen, format="%d/%m/%Y")
-BC = BC %>% 
-  rename(
-    date = Date.of.Specimen,
-  )
-
-```
-
-#### Resp
-
-```{r}
-Resp <- read.csv(file("Resp.csv"))
-Resp['Measure']='Resp'
-Resp$Date.of.Specimen = as.Date(Resp$Date.of.Specimen, format="%d/%m/%Y")
-Resp = Resp %>% 
-  rename(
-    date = Date.of.Specimen,
-  )
-```
-
-#### Urine
-
-```{r}
-Urine <- read.csv(file("Urine.csv"))
-Urine['Measure']='Urine'
-Urine$Date.of.Specimen = as.Date(Urine$Date.of.Specimen, format="%d/%m/%Y")
-Urine = Urine %>% 
-  rename(
-    date = Date.of.Specimen,
-  )
-```
 
 #### poctLAC - Point of Care Testing - Lactate
 
@@ -1336,6 +1301,172 @@ poctpH <- poctpH2
 rm(poctpH2)
 ```
 
+
+
+#### Vir - Virology
+
+```{r}
+
+Vir <- read.csv(file("Vir.csv"))
+Vir['Measure']='Vir'
+Vir$Sample.Date = as.Date(Vir$Sample.Date, format="%d/%m/%Y")
+Vir = Vir %>% 
+  rename(
+    date = Sample.Date,
+    Adenovirus = Adenovirus..PCR.,
+    Human_Metapneumovirus = Human.metapneumovirus..PCR.,
+    Influenza_A = Influenza.A..PCR.,
+    Influenza_B = Influenza.B..PCR.,
+    Parainfluenza_Type_1 = Parainfluenza.Type.1..PCR.,
+    Parainfluenza_Type_2 = Parainfluenza.Type.2..PCR.,
+    Parainfluenza_Type_3 = Parainfluenza.Type.3..PCR.,
+    Parainfluenza_Type_4 = Parainfluenza.Type.4..PCR.,
+    Respiratory_Syncytial_Virus = Respiratory.Syncytial.Virus..PCR.,
+    Rhinovirus = Rhinovirus..PCR.,
+  )
+
+
+Vir <- Vir %>% mutate(viral_coinfection = if_else((Adenovirus  == "POSITIVE" | Human_Metapneumovirus  == "POSITIVE" | Influenza_A  == "POSITIVE" | Influenza_B  == "POSITIVE" | Parainfluenza_Type_1  == "POSITIVE" | Parainfluenza_Type_2  == "POSITIVE" | Parainfluenza_Type_3  == "POSITIVE" | Parainfluenza_Type_4  == "POSITIVE" | Respiratory_Syncytial_Virus  == "POSITIVE" | Rhinovirus  == "POSITIVE"),TRUE,FALSE))
+
+Vir <- Vir %>% select(ID,date,viral_coinfection)
+
+Vir <- Vir[complete.cases(Vir),]
+
+Vir2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "viral_coinfection")
+colnames(Vir2) <- x
+
+for (id in unique(Vir$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = Vir[Vir$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  presence = TRUE %in% (Vir[Vir$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$viral_coinfection)
+  Vir2 <- Vir2 %>% add_row(ID=id,viral_coinfection=presence)
+
+}
+
+Vir <- Vir2
+rm(Vir2)
+
+
+```
+
+
+#### BC
+
+```{r}
+BC <- read.csv(file("BC.csv"))
+BC['Measure']='BC'
+BC$Date.of.Specimen = as.Date(BC$Date.of.Specimen, format="%d/%m/%Y")
+BC = BC %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+
+BC <- BC %>% mutate(bc_coinfection = if_else((Organism.Desc != "Negative BC" & Source.Desc != "? Contaminant"),TRUE,FALSE))
+
+BC <- BC %>% select(ID,date,bc_coinfection)
+
+BC <- BC[complete.cases(BC),]
+
+BC2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "bc_coinfection")
+colnames(BC2) <- x
+
+for (id in unique(BC$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = BC[BC$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  presence = TRUE %in% (BC[BC$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$bc_coinfection)
+  BC2 <- BC2 %>% add_row(ID=id,bc_coinfection=presence)
+
+}
+
+BC <- BC2
+rm(BC2)
+
+
+```
+
+#### Resp
+
+```{r}
+Resp <- read.csv(file("Resp.csv"))
+Resp['Measure']='Resp'
+Resp$Date.of.Specimen = as.Date(Resp$Date.of.Specimen, format="%d/%m/%Y")
+Resp = Resp %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+
+Resp <- Resp %>% mutate(resp_coinfection = if_else((Organism.Desc != "Negative Sp"),TRUE,FALSE))
+
+Resp <- Resp %>% select(ID,date,resp_coinfection)
+
+Resp <- Resp[complete.cases(Resp),]
+
+Resp2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "resp_coinfection")
+colnames(Resp2) <- x
+
+for (id in unique(Resp$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = Resp[Resp$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  presence = TRUE %in% (Resp[Resp$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$resp_coinfection)
+  Resp2 <- Resp2 %>% add_row(ID=id,resp_coinfection=presence)
+
+}
+
+Resp <- Resp2
+rm(Resp2)
+```
+
+#### Urine
+
+```{r}
+Urine <- read.csv(file("Urine.csv"))
+Urine['Measure']='Urine'
+Urine$Date.of.Specimen = as.Date(Urine$Date.of.Specimen, format="%d/%m/%Y")
+Urine = Urine %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+
+Urine <- Urine %>% mutate(urine_coinfection = if_else((Organism.Desc != "Negative MSU"),TRUE,FALSE))
+
+Urine <- Urine %>% select(ID,date,urine_coinfection)
+
+Urine <- Urine[complete.cases(Urine),]
+
+Urine2 <- data.frame(matrix(ncol = 2, nrow = 0))
+x <- c("ID", "urine_coinfection")
+colnames(Urine2) <- x
+
+for (id in unique(Urine$ID)){
+    # Return all values for the admission date for this ID
+    # Find the average value for these dates
+    # Store in new table for that variable where we have one value per date per
+  idDates = Urine[Urine$ID==id,]$date
+  idPositive = total$positiveDate[total$ID==id][1]
+  presence = TRUE %in% (Urine[Urine$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$urine_coinfection)
+  Urine2 <- Urine2 %>% add_row(ID=id,urine_coinfection=presence)
+
+}
+
+Urine <- Urine2
+rm(Urine2)
+
+```
+
+
+
 ## AvonCap
 
 ```{r}
@@ -1403,13 +1534,24 @@ AvonCap = AvonCap %>%
 # Merge values with total table by admission date
 
 ```{r}
-variables = list(BE,BNP,CRP,DDM,eGFR,FER,fib,Glucose,HB,HBA1c,LDH,PCT,PLT,trig,trop,FBCLymph,FBCNeutr,FBCWCC,FBCNLR,ClotAPTT,ClotPT,poctLAC,O2,CO2,poctpH)
+variables = list(BE,BNP,CRP,DDM,eGFR,FER,fib,Glucose,HB,HBA1c,LDH,PCT,PLT,trig,trop,FBCLymph,FBCNeutr,FBCWCC,FBCNLR,ClotAPTT,ClotPT,poctLAC,O2,CO2,poctpH,Vir,BC,Resp,Urine)
 
 for (variable in variables){
   total <- merge(total,variable, all.x=TRUE)
 }
 
 ```
+
+
+
+#### Add any co-infection column 
+```{r}
+total <- total %>% mutate(coinfection = if_else((viral_coinfection == TRUE | resp_coinfection == TRUE | bc_coinfection == TRUE | urine_coinfection == TRUE),TRUE,FALSE))
+
+```
+
+
+
 
 
 # Check values against ranges and create normal/abnormal binary column
