@@ -1546,7 +1546,7 @@ for (variable in variables){
 
 #### Add any co-infection column 
 ```{r}
-total <- total %>% mutate(coinfection = if_else((viral_coinfection == TRUE | resp_coinfection == TRUE | bc_coinfection == TRUE | urine_coinfection == TRUE),TRUE,FALSE))
+total <- total %>% mutate(coinfection = if_else((viral_coinfection == TRUE | resp_coinfection == TRUE | bc_coinfection == TRUE | urine_coinfection == TRUE),TRUE,FALSE,FALSE))
 
 ```
 
@@ -1740,7 +1740,7 @@ for (i in (1:10)){
 ```
 # Number of people without any outcomes info
 ```{r}
-allIDs <- (unique(Vir$ID))
+allIDs <- (unique(CovidCT$ID))
 allAdmissionIDs <- (unique(totalOutcomes$ID))
 
 missingAdmissionIDs <- setdiff(allIDs,allAdmissionIDs)
@@ -1772,6 +1772,17 @@ length(allCompleteAdmissionIDs)
 totalBinary <- totalBinary %>% filter(!is.na(dischargeDate))
 
 ```
+# ID, admission and Covid Test for those with missing discharge info
+```{r}
+missingDischarge_total <- total %>% 
+  select(ID,admissionDate) %>%
+  filter(is.element(ID,missingDischarge)) %>%
+  filter(!is.na(admissionDate))
+
+```
+
+
+
 # All those who went immediately to ICU
 ```{r}
 # How many people went to ICU? 
@@ -1783,22 +1794,21 @@ length(unique(immediateICU$ID))
 
 
 ```
-# What proportion of patients stayed longer than a week?
-893 patients with complete admissions info. 
-```{r}
-# Stayed longer than a week
-nrow(totalOutcomes[lengthOfStay >= 7])
 
-# Stayed longer than 2 weeks 
-nrow(totalOutcomes[lengthOfStay >= 14])
-
-```
 # Age less than 18
 ```{r}
 # Remove those less than 18
 totalBinary <- totalBinary %>% filter(Age >= 18)
 
 ```
+
+# Replace NAs for columns with "Test not taken"
+```{r}
+#replaceNAs_totalBinary <- totalBinary %>% select(-ID,-admissionDate,-dischargeDate,-ITU_End,-ITU_Start,-deathDate,-Gender,-Age,-died,-went_to_icu,-severeOutcome,-positiveDate,-coinfection) %>% replace_na("Test not taken")
+
+totalBinary[c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val","fib_val","Glucose_val","HB_val","HBA1c_val","LDH_val","PCT_val","PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils","WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val","CO2_val","poctpH_val","viral_coinfection","bc_coinfection","resp_coinfection","urine_coinfection")][is.na(totalBinary[c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val","fib_val","Glucose_val","HB_val","HBA1c_val","LDH_val","PCT_val","PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils","WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val","CO2_val","poctpH_val","viral_coinfection","bc_coinfection","resp_coinfection","urine_coinfection")])] <- "Test not taken"
+```
+
 
 
 ```{r}
