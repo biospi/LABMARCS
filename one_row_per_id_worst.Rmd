@@ -505,6 +505,18 @@ rm(CRP2)
 
 ```{r}
 DDM <- read.csv(file("DDM.csv"))
+DDM_N <- DDM %>% 
+  filter(str_detect(Source.PCG.Code,"N")) %>%
+  transmute(
+    ID = ID,
+    Date.Booked.In = Date.Booked.In,
+    Source.PCG.Code = Source.PCG.Code,
+    Result..Not.Large.= Result..Not.Large.,
+    Numeric.Result = as.double(Result..Not.Large.)*1000
+    )
+
+DDM$Numeric.Result[str_detect(DDM$Source.PCG.Code,"N")] <- DDM_N$Numeric.Result
+
 DDM$Date.Booked.In = as.Date(DDM$Date.Booked.In, format="%d/%m/%Y")
 DDM = DDM %>% 
   rename(
@@ -697,6 +709,9 @@ fib = fib %>%
   rename(
     fib_val = Numeric.Result
   )
+
+fib$fib_val[fib$Result..Not.Large.=='>6.0'] <- 6.1
+
 
 fib = fib %>% select(ID,date,fib_val)
 
