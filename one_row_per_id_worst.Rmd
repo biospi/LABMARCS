@@ -412,7 +412,7 @@ for (id in unique(commonIDs)){
     # Compare the lowest and highest values against the range, evaluate to true if
     # either are outside the range, and assign "Abnormal", else "Normal"
     age = total$Age[total$ID==id]
-    gender = total$Age[total$ID==id]
+    gender = total$Gender[total$ID==id]
 
     if (age < 70){
       # Men under 70
@@ -672,7 +672,7 @@ for (id in unique(commonIDs)){
     # Compare the lowest and highest values against the range, evaluate to true if
     # either are outside the range, and assign "Abnormal", else "Normal"
     age = total$Age[total$ID==id]
-    gender = total$Age[total$ID==id]
+    gender = total$Gender[total$ID==id]
 
     if (gender =="M"){
       # If male
@@ -840,7 +840,7 @@ for (id in (unique(commonIDs))){
   # Get all values for this ID and variable within the daterange from positive date
   all_values = HB[HB$ID==id,][(idDates >= idPositive & idDates < (idPositive) + dateRange),]$HB_val
   
-  gender = total$Age[total$ID==id]
+  gender = total$Gender[total$ID==id]
 
   # If all_values contains any values, then proceed
   if(length(!is.na(all_values)) > 0){
@@ -2032,7 +2032,7 @@ for (variable in variables){
 #### Add any co-infection column 
 ```{r}
 total <- total %>% mutate(coinfection = if_else((viral_coinfection == TRUE | resp_coinfection == TRUE | bc_coinfection == TRUE | urine_coinfection == TRUE),TRUE,FALSE,FALSE))
-
+totalBinary <- total
 ```
 
 
@@ -2080,42 +2080,6 @@ missingData %>% missing_plot()
 ```
 
 
-# Number of people without any outcomes info
-```{r}
-allIDs <- (unique(CovidCT$ID))
-allAdmissionIDs <- (unique(totalOutcomes$ID))
-
-missingAdmissionIDs <- setdiff(allIDs,allAdmissionIDs)
-length(missingAdmissionIDs)
-
-```
-
-
-# ID, admission and Covid Test for those with missing discharge info
-```{r}
-missingDischarge_total <- total %>% 
-  select(ID,admissionDate) %>%
-  filter(is.element(ID,missingDischarge)) %>%
-  filter(!is.na(admissionDate))
-
-```
-
-
-
-# All those who went immediately to ICU
-```{r}
-# How many people went to ICU? 
-icu_num <- length(unique(totalOutcomes %>% filter(!is.na(ITU_Start)))$ID)
-print(icu_num)
-
-immediateICU <- totalOutcomes %>% filter(!is.na(ITU_Start) & (ITU_Start == admissionDate))
-length(unique(immediateICU$ID))
-
-
-```
-
-
-
 # Replace NAs for columns with "Test not taken"
 ```{r}
 #replaceNAs_totalBinary <- totalBinary %>% select(-ID,-admissionDate,-dischargeDate,-ITU_End,-ITU_Start,-deathDate,-Gender,-Age,-died,-went_to_icu,-severeOutcome,-positiveDate,-coinfection) %>% replace_na("Test not taken")
@@ -2127,15 +2091,5 @@ totalBinary[c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val","fib_v
 
 ```{r}
 write.csv(x=totalBinary, file="totalBinary.csv")
-```
-
-
-
-```{r}
-write.csv(x=missingDischarge, file="C:/Users/gq19765/OneDrive - University of Bristol/Documents/ICU PhD/LABMARCS/Data/missingDischargeIDs.csv")
-```
-
-```{r}
-
 ```
 
