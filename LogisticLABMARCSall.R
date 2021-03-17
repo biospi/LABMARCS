@@ -19,10 +19,15 @@
   ImputationAllowed <- 1
   # Model exclusively looking at comordbities (looks only at 1 hospital)
   Comorbidities <- 0
-  # Date window to pull tests
-  dateRange <- 3
-  # Type of compression for multiple test readings during the stay window
-  readingwanted <- 2 # 0-worst, 1-first, 2-mean
+  # MasterAnalysisOn==1 prevents the dateRange and readingwanted variables from
+  # being overwritten, but the option to turn this off and run this script without
+  # first running MasterAnalysis.R is available by setting MasterAnalysisOn==0 and then
+  # manually selecting the dateRange and readingwanted variables.
+  MasterAnalysisOn <- 0
+  if (MasterAnalysisOn==0) {
+    dateRange <- 5 # 1, 3 or 5 days
+    readingwanted <- 1 # 0-worst, 1-first, 2-mean
+  }
 
 if (LookForUpdates==1) {
   # Update R
@@ -66,7 +71,7 @@ if (LoadLibraries==1) {
   
 # DATA PROCESSING ------------------------------------------------------
 # Read in data depending on day window & best/worst/mean measurement compression
-setwd("//ubht.nhs.uk/userdata/M/MacgregLou/Documents/LABMARCS-main11_02_21/LABMARCS-main")
+setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/LABMARCS/Code/LABMARCS-main/LABMARCS-main")
   if (dateRange==1) {
     if (readingwanted==0) {
       fulldata <- read.csv(file="totalBinary1worst.csv",na.strings=c(""))
@@ -132,8 +137,7 @@ fulldata <- subset(fulldata, select = -c(died,went_to_icu,severeOutcome,N,coinfe
 
 if (Comorbidities==0) {
 # Remove comorbidities as variables if we aren't considering them
-fulldata <- subset(fulldata, select = -c(ID,PSI,Ethnicity,Smoking.status,
-                                      NYHA_Heart_failure,CRB65_Score,
+fulldata <- subset(fulldata, select = -c(PSI,NYHA_Heart_failure,CRB65_Score,
                                       NEWS2_Score,COPD,Asthma,Bronchiectasis,
                                       Respiratory_Disease_other, Hypertension,
                                       Chronic_Kidney_Disease,Liver_disease,
@@ -150,9 +154,11 @@ fulldata$Gender = factor(fulldata$Gender,
                        levels=c("F", "M"))
 # Age (Age)
 # Age grouped, make into average # NEED TO GET WORKING FOR NEW AGE DATA
-total[total == "20-21"] <- "20.5"
-total[total == "99-102"] <- "100.5"
+fulldata$Age[fulldata$Age == "20-21"] <- "20.5"
+fulldata$Age[fulldata$Age == "99-102"] <- "100.5"
 fulldata$Age <- as.numeric(fulldata$Age)
+# Drop if age is missing
+fulldata <- fulldata[!is.na(fulldata$Age), ]
 
 
 # All others ()
@@ -544,6 +550,7 @@ ggroc(roccurve, legacy.axes = T) +
   scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
   scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25))
 
+if (Comorbidity==0) {
 # Stability analysis--------------------------------------------------------
 # Initialize vectors and arrays
 # Count of the number of of times each variable is used in a model
@@ -661,6 +668,7 @@ colnames(freqpairs) <- c(varnames[[1]])
 rownames(freqpairs) <- c(varnames[[1]])
 # correlation plot CURRENTLY MESSY AND MORE ROBUST MEASURES ARE NEEDED
 corrplot(cor(freqpairs), method="circle")
+}
 
 # LOOK AT MINIMUM REPORTING FOR STABILITY ANALYSES FROM STATS RECOMMENDATIONS
 #---------------------------------------------------------------------------

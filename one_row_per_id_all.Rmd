@@ -33,10 +33,16 @@ library(data.table)
 ```
 # Global variables
 ```{r}
-dateRange <- 3 # 1, 3 or 5 days
-readingwanted <- 2 # 0-worst, 1-first, 2-mean
+# MasterAnalysisOn==1 prevents the dateRange and readingwanted variables from
+# being overwritten, but the option to turn this off and run this script without
+# first running MasterAnalysis.R is available by setting MasterAnalysisOn==0 and then
+# manually selecting the dateRange and readingwanted variables.
+MasterAnalysisOn <- 0
+if (MasterAnalysisOn==0) {
+dateRange <- 5 # 1, 3 or 5 days
+readingwanted <- 1 # 0-worst, 1-first, 2-mean
+}
 ```
-
 
 
 # Load in data files
@@ -48,13 +54,11 @@ readingwanted <- 2 # 0-worst, 1-first, 2-mean
 NBT_outcomes <- read.csv(file("NBT_outcomes.csv"))
 NBT_outcomes = NBT_outcomes %>% 
   rename(
+    ID = uob_ID,
     admissionDate = admission_date,
-  )
-NBT_outcomes$admissionDate = as.Date(NBT_outcomes$admissionDate, format="%d/%m/%Y")
-NBT_outcomes = NBT_outcomes %>% 
-  rename(
     dischargeDate = discharge_date,
   )
+NBT_outcomes$admissionDate = as.Date(NBT_outcomes$admissionDate, format="%d/%m/%Y")
 NBT_outcomes$dischargeDate = as.Date(NBT_outcomes$dischargeDate, format="%d/%m/%Y")
 NBT_outcomes_deaths = NBT_outcomes %>%
   filter(DischargeOutcomeDesc == "Patient Died")
@@ -73,14 +77,12 @@ NBT_outcomes2 <- dplyr::select(NBT_outcomes,c(ID,admissionDate,dischargeDate,
 UHB_outcomes1 <- read.csv(file("UHB_outcomes1.csv"))
 UHB_outcomes1 = UHB_outcomes1 %>% 
   rename(
+    ID = uob_ID,
     admissionDate = attend_date,
+    deathDate = fu_death_date,
   )
 UHB_outcomes1$admissionDate = as.Date(UHB_outcomes1$admissionDate, format="%d/%m/%Y")
 UHB_outcomes1$dischargeDate = as.Date(UHB_outcomes1$admissionDate + as.integer(UHB_outcomes1$hospital_length_of_stay))
-UHB_outcomes1 = UHB_outcomes1 %>% 
-  rename(
-    deathDate = fu_death_date,
-  )
 UHB_outcomes1$deathDate = as.Date(UHB_outcomes1$deathDate, format="%d/%m/%Y")
 UHB_outcomes1$ITU_Start <- as.Date(NA)
 UHB_outcomes1$ITU_End <- as.Date(NA)
@@ -90,6 +92,7 @@ UHB_outcomes12 = UHB_outcomes1 %>% dplyr::select(ID,admissionDate,dischargeDate,
 UHB_outcomes2 <- read.csv(file("UHB_outcomes2.csv"))
 UHB_outcomes2 = UHB_outcomes2 %>% 
   rename(
+    ID = uob_ID,
     admissionDate = attend_dte,
   )
 UHB_outcomes2$admissionDate = as.Date(UHB_outcomes2$admissionDate, format="%d/%m/%Y")
@@ -111,31 +114,20 @@ UHB_outcomes22 = UHB_outcomes2 %>% dplyr::select(ID,admissionDate,dischargeDate,
 ### Weston outcomes
 
 ```{r}
-WestonOutcomes <- read.csv(file("Weston Outcomes.csv"))
+WestonOutcomes <- read.csv(file("Weston.Outcomes.csv"))
 WestonOutcomes = WestonOutcomes %>% 
   rename(
+    ID = uob_ID,
     admissionDate = Admission.date,
+    dischargeDate = Discharge.date,
+    ITU_Start = ICU.Admission.Date,
+    ITU_End = ICU.Discharge.Date,
+    deathDate = Date.of.Death,
   )
 WestonOutcomes$admissionDate = as.Date(WestonOutcomes$admissionDate, format="%d/%m/%Y")
-WestonOutcomes = WestonOutcomes %>% 
-  rename(
-    dischargeDate = Discharge.date,
-  )
 WestonOutcomes$dischargeDate = as.Date(WestonOutcomes$dischargeDate, format="%d/%m/%Y")
-WestonOutcomes = WestonOutcomes %>% 
-  rename(
-    ITU_Start = ICU.Admission.Date
-  )
 WestonOutcomes$ITU_Start = as.Date(WestonOutcomes$ITU_Start, format="%d/%m/%Y")
-WestonOutcomes = WestonOutcomes %>% 
-  rename(
-    ITU_End = ICU.Discharge.Date
-  )
 WestonOutcomes$ITU_End = as.Date(WestonOutcomes$ITU_End, format="%d/%m/%Y")
-WestonOutcomes = WestonOutcomes %>% 
-  rename(
-    deathDate = Date.of.Death
-  )
 WestonOutcomes$deathDate = as.Date(WestonOutcomes$deathDate, format="%d/%m/%Y")
 WestonOutcomes$Site = "Weston"
 WestonOutcomes2 = WestonOutcomes %>% dplyr::select(ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate, Site)
@@ -149,46 +141,17 @@ Vir['Measure']='Vir'
 Vir$Sample.Date = as.Date(Vir$Sample.Date, format="%d/%m/%Y")
 Vir = Vir %>% 
   rename(
+    ID = uob_ID,
     date = Sample.Date,
-  )
-Vir = Vir %>% 
-  rename(
     Adenovirus = Adenovirus..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Human_Metapneumovirus = Human.metapneumovirus..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Influenza_A = Influenza.A..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Influenza_B = Influenza.B..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Parainfluenza_Type_1 = Parainfluenza.Type.1..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Parainfluenza_Type_2 = Parainfluenza.Type.2..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Parainfluenza_Type_3 = Parainfluenza.Type.3..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Parainfluenza_Type_4 = Parainfluenza.Type.4..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Respiratory_Syncytial_Virus = Respiratory.Syncytial.Virus..PCR.,
-  )
-Vir = Vir %>% 
-  rename(
     Rhinovirus = Rhinovirus..PCR.,
   )
 ```
@@ -209,9 +172,10 @@ totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format="%d/%m
 Age and gender for every individual
 
 ```{r}
-dem = Vir %>%
-  distinct(ID, .keep_all = TRUE)
-dem = dem %>%
+dem <- read.csv(file("masterlist.csv"))
+dem <- dem %>%
+  rename(ID = uob_ID, Age = agecat) %>%
+  distinct(ID, .keep_all = TRUE) %>%
   dplyr::select(ID,Gender,Age)
 ```
 
@@ -284,6 +248,7 @@ CovidCT['Measure']='CovidCT'
 CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
 CovidCT = CovidCT %>% 
   rename(
+     ID = uob_ID,
     date = Specimen.Date,
   )
 
@@ -333,6 +298,7 @@ BE$Date.Booked.In = as.Date(BE$Date.Booked.In, format="%d/%m/%Y")
 BE = BE %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 BE = BE %>%
   rename(
@@ -343,10 +309,8 @@ BE = BE %>% dplyr::select(ID,date,BE_val)
 
 BE <- BE[complete.cases(BE),]
 
-BE2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "BE_val")
-colnames(BE2) <- x
-BE2$BE_val <- as.character(BE2$BE_val)
+BE2 <- data.frame(ID=character(),
+                  BE_val=character())
 
 commonIDs <- intersect(total$ID,BE$ID)
 
@@ -397,6 +361,7 @@ BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format="%d/%m/%Y")
 BNP = BNP %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 BNP = BNP %>%
   rename(
@@ -407,10 +372,8 @@ BNP = BNP %>% dplyr::select(ID,date,BNP_val)
 
 BNP <- BNP[complete.cases(BNP),]
 
-BNP2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "BNP_val")
-colnames(BNP2) <- x
-BNP2$BNP_val <- as.character(BNP2$BNP_val)
+BNP2 <- data.frame(ID=character(),
+                  BNP_val=character())
 
 commonIDs <- intersect(total$ID,BNP$ID)
 
@@ -540,6 +503,7 @@ CRP$Date.Booked.In = as.Date(CRP$Date.Booked.In, format="%d/%m/%Y")
 CRP = CRP %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 CRP = CRP %>%
   rename(
@@ -550,10 +514,8 @@ CRP = CRP %>% dplyr::select(ID,date,CRP_val)
 
 CRP <- CRP[complete.cases(CRP),]
 
-CRP2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "CRP_val")
-colnames(CRP2) <- x
-CRP2$CRP_val <- as.character(CRP2$CRP_val)
+CRP2 <- data.frame(ID=character(),
+                  CRP_val=character())
 
 commonIDs <- intersect(total$ID,CRP$ID)
 
@@ -603,37 +565,32 @@ rm(CRP2)
 
 ```{r}
 DDM <- read.csv(file("DDM.csv"))
-DDM_N <- DDM %>% 
-  filter(str_detect(Source.PCG.Code,"N")) %>%
-  transmute(
-    ID = ID,
-    Date.Booked.In = Date.Booked.In,
-    Source.PCG.Code = Source.PCG.Code,
-    Result..Not.Large.= Result..Not.Large.,
-    Numeric.Result = as.double(Result..Not.Large.)*1000
-    )
+#DDM_N <- DDM %>% 
+#  filter(str_detect(Source.PCG.Code,"N")) %>%
+#  transmute(
+#    uob_ID = uob_ID,
+#    Date.Booked.In = Date.Booked.In,
+#    Source.PCG.Code = Source.PCG.Code,
+#    Result..Not.Large.= Result..Not.Large.,
+#    Numeric.Result = as.double(Result..Not.Large.)*1000
+#    )
 
-DDM$Numeric.Result[str_detect(DDM$Source.PCG.Code,"N")] <- DDM_N$Numeric.Result
+# DDM$Numeric.Result[str_detect(DDM$Source.PCG.Code,"N")] <- DDM_N$Numeric.Result
 
 DDM$Date.Booked.In = as.Date(DDM$Date.Booked.In, format="%d/%m/%Y")
 DDM = DDM %>% 
   rename(
+    ID = uob_ID,
     date = Date.Booked.In,
-  )
-DDM = DDM %>%
-  rename(
-    DDM_val = Numeric.Result
+    DDM_val = Numeric.Result,
   )
 
 DDM = DDM %>% dplyr::select(ID,date,DDM_val)
 
 DDM <- DDM[complete.cases(DDM),]
 
-DDM2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "DDM_val")
-colnames(DDM2) <- x
-
-DDM2$DDM_val <- as.character(DDM2$DDM_val)
+DDM2 <- data.frame(ID=character(),
+                  DDM_val=character())
 
 commonIDs <- intersect(total$ID,DDM$ID)
 
@@ -721,6 +678,7 @@ eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
 eGFR = eGFR %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 eGFR = eGFR %>%
   rename(
@@ -733,11 +691,8 @@ eGFR = eGFR %>% dplyr::select(ID,date,eGFR_val)
 
 eGFR <- eGFR[complete.cases(eGFR),]
 
-eGFR2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "eGFR_val")
-colnames(eGFR2) <- x
-
-eGFR2$eGFR_val <- as.character(eGFR2$eGFR_val)
+eGFR2 <- data.frame(ID=character(),
+                  eGFR_val=character())
 
 commonIDs <- intersect(total$ID,eGFR$ID)
 
@@ -788,6 +743,7 @@ FER$Date.Booked.In = as.Date(FER$Date.Booked.In, format="%d/%m/%Y")
 FER = FER %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 FER = FER %>%
   rename(
@@ -798,11 +754,8 @@ FER = FER %>% dplyr::select(ID,date,FER_val)
 
 FER <- FER[complete.cases(FER),]
 
-FER2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "FER_val")
-colnames(FER2) <- x
-
-FER2$FER_val <- as.character(FER2$FER_val)
+FER2 <- data.frame(ID=character(),
+                  FER_val=character())
 
 commonIDs <- intersect(total$ID,FER$ID)
 
@@ -896,6 +849,7 @@ fib$Date.Booked.In = as.Date(fib$Date.Booked.In, format="%d/%m/%Y")
 fib = fib %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 fib = fib %>%
   rename(
@@ -909,11 +863,8 @@ fib = fib %>% dplyr::select(ID,date,fib_val)
 
 fib <- fib[complete.cases(fib),]
 
-fib2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "fib_val")
-colnames(fib2) <- x
-
-fib2$fib_val <- as.character(fib2$fib_val)
+fib2 <- data.frame(ID=character(),
+                  fib_val=character())
 
 commonIDs <- intersect(total$ID,fib$ID)
 
@@ -966,6 +917,7 @@ Glucose$Date.Booked.In = as.Date(Glucose$Date.Booked.In, format="%d/%m/%Y")
 Glucose = Glucose %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 Glucose = Glucose %>%
   rename(
@@ -976,11 +928,8 @@ Glucose = Glucose %>% dplyr::select(ID,date,Glucose_val)
 
 Glucose <- Glucose[complete.cases(Glucose),]
 
-Glucose2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "Glucose_val")
-colnames(Glucose2) <- x
-
-Glucose2$Glucose_val <- as.character(Glucose2$Glucose_val)
+Glucose2 <- data.frame(ID=character(),
+                  Glucose_val=character())
 
 commonIDs <- intersect(total$ID,Glucose$ID)
 
@@ -1033,6 +982,7 @@ HB$Date.Booked.In = as.Date(HB$Date.Booked.In, format="%d/%m/%Y")
 HB = HB %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 HB = HB %>%
   rename(
@@ -1043,11 +993,8 @@ HB = HB %>% dplyr::select(ID,date,HB_val)
 
 HB <- HB[complete.cases(HB),]
 
-HB2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "HB_val")
-colnames(HB2) <- x
-
-HB2$HB_val <- as.character(HB2$HB_val)
+HB2 <- data.frame(ID=character(),
+                  HB_val=character())
 
 commonIDs <- intersect(total$ID,HB$ID)
 
@@ -1123,6 +1070,7 @@ HBA1c$Date.Booked.In = as.Date(HBA1c$Date.Booked.In, format="%d/%m/%Y")
 HBA1c = HBA1c %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 HBA1c = HBA1c %>%
   rename(
@@ -1133,11 +1081,8 @@ HBA1c = HBA1c %>% dplyr::select(ID,date,HBA1c_val)
 
 HBA1c <- HBA1c[complete.cases(HBA1c),]
 
-HBA1c2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "HBA1c_val")
-colnames(HBA1c2) <- x
-
-HBA1c2$HBA1c_val <- as.character(HBA1c2$HBA1c_val)
+HBA1c2 <- data.frame(ID=character(),
+                  HBA1c_val=character())
 
 commonIDs <- intersect(total$ID,HBA1c$ID)
 
@@ -1187,6 +1132,7 @@ LDH$Date.Booked.In = as.Date(LDH$Date.Booked.In, format="%d/%m/%Y")
 LDH = LDH %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 LDH = LDH %>%
   rename(
@@ -1197,12 +1143,8 @@ LDH = LDH %>% dplyr::select(ID,date,LDH_val)
 
 LDH <- LDH[complete.cases(LDH),]
 
-LDH2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "LDH_val")
-colnames(LDH2) <- x
-
-
-LDH2$LDH_val <- as.character(LDH2$LDH_val)
+LDH2 <- data.frame(ID=character(),
+                  LDH_val=character())
 
 commonIDs <- intersect(total$ID,LDH$ID)
 
@@ -1256,6 +1198,7 @@ PCT$Date.Booked.In = as.Date(PCT$Date.Booked.In, format="%d/%m/%Y")
 PCT = PCT %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 PCT = PCT %>%
   rename(
@@ -1266,11 +1209,8 @@ PCT = PCT %>% dplyr::select(ID,date,PCT_val)
 
 PCT <- PCT[complete.cases(PCT),]
 
-PCT2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "PCT_val")
-colnames(PCT2) <- x
-
-PCT2$PCT_val <- as.character(PCT2$PCT_val)
+PCT2 <- data.frame(ID=character(),
+                  PCT_val=character())
 
 commonIDs <- intersect(total$ID,PCT$ID)
 
@@ -1322,6 +1262,7 @@ PLT$Date.Booked.In = as.Date(PLT$Date.Booked.In, format="%d/%m/%Y")
 PLT = PLT %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 PLT = PLT %>%
   rename(
@@ -1332,12 +1273,8 @@ PLT = PLT %>% dplyr::select(ID,date,PLT_val)
 
 PLT <- PLT[complete.cases(PLT),]
 
-PLT2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "PLT_val")
-colnames(PLT2) <- x
-
-
-PLT2$PLT_val <- as.character(PLT2$PLT_val)
+PLT2 <- data.frame(ID=character(),
+                  PLT_val=character())
 
 commonIDs <- intersect(total$ID,PLT$ID)
 
@@ -1391,6 +1328,7 @@ trig$Date.Booked.In = as.Date(trig$Date.Booked.In, format="%d/%m/%Y")
 trig = trig %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 trig = trig %>%
   rename(
@@ -1401,13 +1339,8 @@ trig = trig %>% dplyr::select(ID,date,trig_val)
 
 trig <- trig[complete.cases(trig),]
 
-trig2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "trig_val")
-colnames(trig2) <- x
-
-
-
-trig2$trig_val <- as.character(trig2$trig_val)
+trig2 <- data.frame(ID=character(),
+                  trig_val=character())
 
 commonIDs <- intersect(total$ID,trig$ID)
 
@@ -1461,6 +1394,7 @@ trop$Date.Booked.In = as.Date(trop$Date.Booked.In, format="%d/%m/%Y")
 trop = trop %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 trop = trop %>%
   rename(
@@ -1471,11 +1405,8 @@ trop = trop %>% dplyr::select(ID,date,trop_val)
 
 trop <- trop[complete.cases(trop),]
 
-trop2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "trop_val")
-colnames(trop2) <- x
-
-trop2$trop_val <- as.character(trop2$trop_val)
+trop2 <- data.frame(ID=character(),
+                  trop_val=character())
 
 commonIDs <- intersect(total$ID,trop$ID)
 
@@ -1533,6 +1464,7 @@ FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
 FBC = FBC %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 ```
 
@@ -1549,11 +1481,8 @@ FBCLymph = FBCLymph %>% dplyr::select(ID,date,Lymphocytes)
 
 FBCLymph <- FBCLymph[complete.cases(FBCLymph),]
 
-FBCLymph2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "Lymphocytes")
-colnames(FBCLymph2) <- x
-
-FBCLymph2$Lymphocytes <- as.character(FBCLymph2$Lymphocytes)
+FBCLymph2 <- data.frame(ID=character(),
+                  Lymphocytes=character())
 
 commonIDs <- intersect(total$ID,FBCLymph$ID)
 
@@ -1612,11 +1541,8 @@ FBCNeutr = FBCNeutr %>% dplyr::select(ID,date,Neutrophils)
 
 FBCNeutr <- FBCNeutr[complete.cases(FBCNeutr),]
 
-FBCNeutr2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "Neutrophils")
-colnames(FBCNeutr2) <- x
-
-FBCNeutr2$Neutrophils <- as.character(FBCNeutr2$Neutrophils)
+FBCNeutr2 <- data.frame(ID=character(),
+                  Neutrophils=character())
 
 commonIDs <- intersect(total$ID,FBCNeutr$ID)
 
@@ -1674,11 +1600,8 @@ FBCWCC = FBCWCC %>% dplyr::select(ID,date,WCC)
 
 FBCWCC <- FBCWCC[complete.cases(FBCWCC),]
 
-FBCWCC2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "WCC")
-colnames(FBCWCC2) <- x
-
-FBCWCC2$WCC <- as.character(FBCWCC2$WCC)
+FBCWCC2 <- data.frame(ID=character(),
+                  WCC=character())
 
 commonIDs <- intersect(total$ID,FBCWCC$ID)
 
@@ -1737,11 +1660,8 @@ FBCNLR = FBCNLR %>% dplyr::select(ID,date,NLR_val)
 
 FBCNLR <- FBCNLR[complete.cases(FBCNLR),]
 
-FBCNLR2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "NLR_val")
-colnames(FBCNLR2) <- x
-
-FBCNLR2$NLR_val <- as.character(FBCNLR2$NLR_val)
+FBCNLR2 <- data.frame(ID=character(),
+                  NLR_val=character())
 
 commonIDs <- intersect(total$ID,FBCNLR$ID)
 
@@ -1795,6 +1715,7 @@ CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
 CovidCT = CovidCT %>% 
   rename(
     date = Specimen.Date,
+     ID = uob_ID,
   )
 ```
 
@@ -1809,6 +1730,7 @@ Clot$Date.Booked.In = as.Date(Clot$Date.Booked.In, format="%d/%m/%Y")
 Clot = Clot %>% 
   rename(
     date = Date.Booked.In,
+     ID = uob_ID,
   )
 ```
 
@@ -1825,11 +1747,8 @@ ClotAPTT = ClotAPTT %>% dplyr::select(ID,date,APTT_val)
 
 ClotAPTT <- ClotAPTT[complete.cases(ClotAPTT),]
 
-ClotAPTT2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "APTT_val")
-colnames(ClotAPTT2) <- x
-
-ClotAPTT2$APTT_val <- as.character(ClotAPTT2$APTT_val)
+ClotAPTT2 <- data.frame(ID=character(),
+                  APTT_val=character())
 
 commonIDs <- intersect(total$ID,ClotAPTT$ID)
 
@@ -1883,11 +1802,8 @@ ClotPT = ClotPT %>% dplyr::select(ID,date,PT_val)
 
 ClotPT <- ClotPT[complete.cases(ClotPT),]
 
-ClotPT2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "PT_val")
-colnames(ClotPT2) <- x
-
-ClotPT2$PT_val <- as.character(ClotPT2$PT_val)
+ClotPT2 <- data.frame(ID=character(),
+                  PT_val=character())
 
 commonIDs <- intersect(total$ID,ClotPT$ID)
 
@@ -1936,6 +1852,7 @@ Antigen <- read.csv(file("Antigen.csv"))
 Antigen = Antigen %>% 
   rename(
     date = Date.of.Specimen,
+     ID = uob_ID,
   )
 ```
 
@@ -1950,6 +1867,7 @@ poctLAC$Date.of.Specimen = as.Date(poctLAC$Date.of.Specimen, format="%d/%m/%Y")
 poctLAC = poctLAC %>% 
   rename(
     date = Date.of.Specimen,
+     ID = uob_ID,
   )
 poctLAC = poctLAC %>% 
   rename(
@@ -1967,11 +1885,8 @@ poctLAC = poctLAC %>% dplyr::select(ID,date,poctLAC_val)
 
 poctLAC <- poctLAC[complete.cases(poctLAC),]
 
-poctLAC2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "poctLAC_val")
-colnames(poctLAC2) <- x
-
-poctLAC2$poctLAC_val <- as.character(poctLAC2$poctLAC_val)
+poctLAC2 <- data.frame(ID=character(),
+                  poctLAC_val=character())
 
 commonIDs <- intersect(total$ID,poctLAC$ID)
 
@@ -2036,6 +1951,7 @@ O2$Date.of.Specimen = as.Date(O2$Date.of.Specimen, format="%d/%m/%Y")
 O2 = O2 %>% 
   rename(
     date = Date.of.Specimen,
+     ID = uob_ID,
   )
 O2 = O2 %>% 
   rename(
@@ -2051,11 +1967,8 @@ O2 = O2 %>% dplyr::select(ID,date,O2_val)
 
 O2 <- O2[complete.cases(O2),]
 
-O22 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "O2_val")
-colnames(O22) <- x
-
-O22$O2_val <- as.character(O22$O2_val)
+O22 <- data.frame(ID=character(),
+                  O2_val=character())
 
 commonIDs <- intersect(total$ID,O2$ID)
 
@@ -2110,6 +2023,7 @@ CO2$Date.of.Specimen = as.Date(CO2$Date.of.Specimen, format="%d/%m/%Y")
 CO2 = CO2 %>% 
   rename(
     date = Date.of.Specimen,
+     ID = uob_ID,
   )
 CO2 = CO2 %>% 
   rename(
@@ -2125,11 +2039,8 @@ CO2 = CO2 %>% dplyr::select(ID,date,CO2_val)
 
 CO2 <- CO2[complete.cases(CO2),]
 
-CO22 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "CO2_val")
-colnames(CO22) <- x
-
-CO22$CO2_val <- as.character(CO22$CO2_val)
+CO22 <- data.frame(ID=character(),
+                  CO2_val=character())
 
 commonIDs <- intersect(total$ID,CO2$ID)
 
@@ -2183,6 +2094,7 @@ poctpH$Date.of.Specimen = as.Date(poctpH$Date...Time.of.Specimen, format="%d/%m/
 poctpH = poctpH %>% 
   rename(
     date = Date...Time.of.Specimen,
+     ID = uob_ID,
   )
 poctpH = poctpH %>% 
   rename(
@@ -2199,11 +2111,8 @@ poctpH = poctpH %>% dplyr::select(ID,date,poctpH_val)
 
 poctpH <- poctpH[complete.cases(poctpH),]
 
-poctpH2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "poctpH_val")
-colnames(poctpH2) <- x
-
-poctpH2$poctpH_val <- as.character(poctpH2$poctpH_val)
+poctpH2 <- data.frame(ID=character(),
+                  poctpH_val=character())
 
 commonIDs <- intersect(total$ID,poctpH$ID)
 
@@ -2259,6 +2168,7 @@ Vir['Measure']='Vir'
 Vir$Sample.Date = as.Date(Vir$Sample.Date, format="%d/%m/%Y")
 Vir = Vir %>% 
   rename(
+     ID = uob_ID,
     date = Sample.Date,
     Adenovirus = Adenovirus..PCR.,
     Human_Metapneumovirus = Human.metapneumovirus..PCR.,
@@ -2279,9 +2189,8 @@ Vir <- Vir %>% dplyr::select(ID,date,viral_coinfection)
 
 Vir <- Vir[complete.cases(Vir),]
 
-Vir2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "viral_coinfection")
-colnames(Vir2) <- x
+Vir2 <- data.frame(ID=character(),
+                  viral_coinfection=logical())
 
 commonIDs <- intersect(total$ID,Vir$ID)
 
@@ -2312,6 +2221,7 @@ BC$Date.of.Specimen = as.Date(BC$Date.of.Specimen, format="%d/%m/%Y")
 BC = BC %>% 
   rename(
     date = Date.of.Specimen,
+     ID = uob_ID,
   )
 
 BC <- BC %>% mutate(bc_coinfection = if_else((Organism.Desc != "Negative BC" & Source.Desc != "? Contaminant"),TRUE,FALSE))
@@ -2320,9 +2230,8 @@ BC <- BC %>% dplyr::select(ID,date,bc_coinfection)
 
 BC <- BC[complete.cases(BC),]
 
-BC2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "bc_coinfection")
-colnames(BC2) <- x
+BC2 <- data.frame(ID=character(),
+                  bc_coinfection=logical())
 
 commonIDs <- intersect(total$ID,Vir$ID)
 
@@ -2351,6 +2260,7 @@ Resp['Measure']='Resp'
 Resp$Date.of.Specimen = as.Date(Resp$Date.of.Specimen, format="%d/%m/%Y")
 Resp = Resp %>% 
   rename(
+     ID = uob_ID,
     date = Date.of.Specimen,
   )
 
@@ -2360,9 +2270,8 @@ Resp <- Resp %>% dplyr::select(ID,date,resp_coinfection)
 
 Resp <- Resp[complete.cases(Resp),]
 
-Resp2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "resp_coinfection")
-colnames(Resp2) <- x
+Resp2 <- data.frame(ID=character(),
+                  resp_coinfection=logical())
 
 commonIDs <- intersect(total$ID,Vir$ID)
 
@@ -2389,6 +2298,7 @@ Urine['Measure']='Urine'
 Urine$Date.of.Specimen = as.Date(Urine$Date.of.Specimen, format="%d/%m/%Y")
 Urine = Urine %>% 
   rename(
+     ID = uob_ID,
     date = Date.of.Specimen,
   )
 
@@ -2398,9 +2308,8 @@ Urine <- Urine %>% dplyr::select(ID,date,urine_coinfection)
 
 Urine <- Urine[complete.cases(Urine),]
 
-Urine2 <- data.frame(matrix(ncol = 2, nrow = 0))
-x <- c("ID", "urine_coinfection")
-colnames(Urine2) <- x
+Urine2 <- data.frame(ID=character(),
+                  urine_coinfection=logical())
 
 commonIDs <- intersect(total$ID,Vir$ID)
 
@@ -2442,9 +2351,10 @@ totalBinary <- total
 #### Comorbidities
 ```{r}
 AvonCap <- read.csv(file("AvonCap.csv"))
+AvonCap = AvonCap %>% rename(ID = uob_ID)
 AvonCap <- AvonCap[!duplicated(AvonCap$ID),]
-AvonCap <- subset(AvonCap, select = -c(X,Repeat.Instrument,Repeat.Instance,
-                                       Hospital,COVID.19.diagnosis))
+AvonCap <- subset(AvonCap, select = -c(Repeat.Instrument,Repeat.Instance,
+                                       COVID.19.diagnosis))
 AvonCap = AvonCap %>%
     rename(
         Community.Pneumonia.Radio = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...radiologically.confirmed.,
@@ -2500,14 +2410,14 @@ AvonCap = AvonCap %>%
         Rockwood_frailty_score = Rockwood.Frailty.Score,
         Radiology_result = Radiology.Result
     )
-AvonCap <- subset(AvonCap, select = c(ID,PSI,Ethnicity,Smoking.status,
+AvonCap <- subset(AvonCap, select = c(ID,PSI,
                                       NYHA_Heart_failure,CRB65_Score,
                                       NEWS2_Score,COPD,Asthma,Bronchiectasis,
                                       Respiratory_Disease_other, Hypertension,
                                       Chronic_Kidney_Disease,Liver_disease,
                                       Diabetes,CVA_Stroke,TIA_mini_stroke,
                                       Immunodeficiency, HIV_positive))
-totalBinary <- merge(total,AvonCap,by=c("ID"))
+totalBinary <- merge(total,AvonCap,by=c("ID"),all.x=TRUE)
 
 ```
 
@@ -2559,6 +2469,11 @@ missingData %>% missing_plot()
 totalBinary[c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val","fib_val","Glucose_val","HB_val","HBA1c_val","LDH_val","PCT_val","PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils","WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val","CO2_val","poctpH_val","viral_coinfection","bc_coinfection","resp_coinfection","urine_coinfection")][is.na(totalBinary[c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val","fib_val","Glucose_val","HB_val","HBA1c_val","LDH_val","PCT_val","PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils","WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val","CO2_val","poctpH_val","viral_coinfection","bc_coinfection","resp_coinfection","urine_coinfection")])] <- "Test not taken"
 ```
 
+COVID on admission
+```{r}
+totalBinary$OnAdmission <- with(totalBinary, ifelse(positiveDate-admissionDate >=8,
+                                                    FALSE,TRUE))
+```
 
 
 ```{r}
