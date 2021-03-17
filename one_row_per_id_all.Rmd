@@ -2463,10 +2463,79 @@ missingData %>% missing_plot()
 
 
 # Replace NAs for columns with "Test not taken"
+Only do this for values we aren't going to do imputation on. 
+Routinely collected variables are below.
+
+Variable        |   In dataset
+-------------   |-------------
+* PT            |       yes
+* INR           |       no
+* APTT          |       yes
+* Fibrinogen    |       yes
+* Bil           |       no
+* ALP           |       no
+* ALT           |       no
+* Mg++          |       no
+* Alb           |       no
+* Ca (total)    |       no
+* Ca (adjusted) |       no
+* PO4-          |       no
+* Trop T        |       yes
+* BNP           |       yes
+* Na++          |       no
+* K+            |       no
+* Urea          |       no
+* Creat         |       no
+* eGFR          |       yes
+* WCC           |       yes
+* Hb            |       yes
+* Hct           |       no
+* Plts          |       yes
+* Neutro        |       yes
+* CRP           |       yes
+* PCT           |       yes
+* Beta-glucan   |       no
+
+Lymphocytes, Neutrophils, White Cell Count and NLR are all part of the same test, so we can include these. 
+
+* PT
+* APTT
+* Fibrinogen
+* Troponin
+* BNP
+* eGFR
+* WCC
+* Neutrophils
+* Lymphocytes
+* NLR
+* Hb
+* Platelets (PLT)
+* CRP
+* PCT
+
+Conservatively, only impute those with <30 % missingness, can add more in future
+
+* eGFR
+* WCC
+* Neutrophils
+* Lymphocytes
+* NLR
+* Hb
+* Platelets (PLT)
+* CRP
+
 ```{r}
 #replaceNAs_totalBinary <- totalBinary %>% dplyr::select(-ID,-admissionDate,-dischargeDate,-ITU_End,-ITU_Start,-deathDate,-Gender,-Age,-died,-went_to_icu,-severeOutcome,-positiveDate,-coinfection) %>% replace_na("Test not taken")
 
-totalBinary[c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val","fib_val","Glucose_val","HB_val","HBA1c_val","LDH_val","PCT_val","PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils","WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val","CO2_val","poctpH_val","viral_coinfection","bc_coinfection","resp_coinfection","urine_coinfection")][is.na(totalBinary[c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val","fib_val","Glucose_val","HB_val","HBA1c_val","LDH_val","PCT_val","PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils","WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val","CO2_val","poctpH_val","viral_coinfection","bc_coinfection","resp_coinfection","urine_coinfection")])] <- "Test not taken"
+all_columns <- c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val","fib_val","Glucose_val","HB_val","HBA1c_val","LDH_val","PCT_val","PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils","WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val","CO2_val","poctpH_val","viral_coinfection","bc_coinfection","resp_coinfection","urine_coinfection")
+
+imputed_columns <- c("eGFR_val","WCC","Neutrophils","Lymphocytes","NLR_val","HB_val","PLT_val","CRP_val")
+
+# Test not taken columns
+tnt_columns <- setdiff(all_columns, imputed_columns)
+
+# Replace NA with "Test not taken"
+totalBinary[tnt_columns][is.na(totalBinary[tnt_columns])] <- "Test not taken"
 ```
 
 COVID on admission
