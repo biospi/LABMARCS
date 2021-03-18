@@ -39,6 +39,7 @@ if (LookForUpdates==1) {
 
 if (InstallPackages==1) {
   # Packages which may require installation
+  install.packages("mice")
   install.packages("DescTools")
   install.packages("moments")
   install.packages("RANN")
@@ -51,6 +52,7 @@ if (InstallPackages==1) {
 
 if (LoadLibraries==1) {
   # Load libraries
+  library("mice")
   library("nestfs")
   library("dplyr")
   library("MASS")
@@ -71,7 +73,7 @@ if (LoadLibraries==1) {
   
 # DATA PROCESSING ------------------------------------------------------
 # Read in data depending on day window & best/worst/mean measurement compression
-setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/LABMARCS/Code/LABMARCS-main/LABMARCS-main")
+setwd("C:/Users/gq19765/OneDrive - University of Bristol/Documents/ICU PhD/LABMARCS/NewData")
   if (dateRange==1) {
     if (readingwanted==0) {
       fulldata <- read.csv(file="totalBinary1worst.csv",na.strings=c(""))
@@ -262,6 +264,22 @@ summary(fulldata)
   
 # ASSIGN TRAINING AND TEST DATA SETS ----------------------------------
 
+# Ensure that factors are specified for values to be imputed (i.e. NA is not a factor)
+factor_levels = c("Normal","Abnormal")
+  
+fulldata <- fulldata %>%
+    mutate(
+      eGFR_val = factor(eGFR_val,levels=factor_levels, exclude=NA),
+      WCC = factor(WCC,levels=factor_levels, exclude=NA),
+      Neutrophils = factor(Neutrophils,levels=factor_levels, exclude=NA),
+      Lymphocytes = factor(Lymphocytes,levels=factor_levels, exclude=NA),
+      NLR_val = factor(NLR_val,levels=factor_levels, exclude=NA),
+      HB_val = factor(HB_val,levels=factor_levels, exclude=NA),
+      PLT_val = factor(PLT_val,levels=factor_levels, exclude=NA),
+      CRP_val = factor(CRP_val,levels=factor_levels, exclude=NA)
+    )
+  
+  
 # Split the data into training and test set
 set.seed(1)
 training.samples <- createDataPartition(fulldata$outcome, p = 0.8, list = FALSE)
@@ -279,14 +297,45 @@ if (ImputationAllowed==0) {
   train.data <- train.data[complete.cases(train.data), ]
   test.data <- train.data[complete.cases(test.data), ]
 } else {
-  # Impute missing values using k-nearest neighbour
-  train.data <- kNN(train.data,k=5)
-  test.data <- kNN(test.data,k=5)
-  fulldata <- kNN(fulldata,k=5)
-  # Remove the TRUE/FALSE variables the imputation function adds to the datasets
-  train.data <- subset(train.data, select = -c(((ncol(train.data)/2)+1):ncol(train.data)))
-  test.data <- subset(test.data, select = -c(((ncol(test.data)/2)+1):ncol(test.data)))
-  fulldata <- subset(fulldata, select = -c(((ncol(fulldata)/2)+1):ncol(fulldata)))
+  # Convert string "NA" to actual NA
+  is.na(fulldata)
+  # Impute missing values using MICE (Multiple Imputation by Chained Equations)
+  # Only looking at eGFR,WCC,Neutrophils,Lymphocytes,NLR,Hb,Platelets (PLT),CRP for time being
+  mice_plot <- aggr(fulldata, col=c("navyblue","yellow"),
+                    numbers=TRUE, sortVars=TRUE,
+                    labels=names(fulldata), cex.axis=.7,
+                    gap=3, ylab=c("Missing data","Pattern"))
+  
+  # NOTES
+  # 1) At the moment default imputation method is fine, as we only have 2 factors
+  #    specified for our variables of interest above, the default method of 
+  #    logistic regression is fine. In future, will need to specify method matrix
+  #    so that we can have predictive mean matching for continuous
+  # 2) Is there anything we would want to exclude from our predictor matrix that we
+  #    haven't excluded already? 
+  
+  #meth = init$method
+  #predM = init$predictorMatrix
+  #meth <- vector()
+  
+  #meth[c("eGFR_val")] = "logreg"
+  #meth[c("WCC")] = "logreg"
+  #meth[c("Neutrophils")] = "logreg"
+  #meth[c("Lymphocytes")] = "logreg"
+  #meth[c("NLR_val")] = "logreg"
+  #meth[c("HB_val")] = "logreg"
+  #meth[c("PLT_val")] = "logreg"
+  #meth[c("CRP_val")] = "logreg"
+  
+  imputed_train <- mice(train.data, m=5, seed=107)
+  imputed_test <- mice(test.data, m=5, seed=107)
+  imputed_full <- mice(fulldata, m=5, seed=107)
+  
+  # Just use one of the imputed datasets (3rd out of 5)
+  # IDEALLY we should use all 5 and pool the output. Uncertain on how to do this!
+  train.data <- complete(imputed_train,3)
+  test.data <- complete(imputed_test,3)
+  fulldata <- complete(imputed_full,3)
 }
 
 summary(fulldata)
