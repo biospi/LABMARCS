@@ -1,6 +1,6 @@
 ---
 title: "One_row_per_id"
-output: html_notebook
+output: github_document
 ---
 
 

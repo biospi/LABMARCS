@@ -1,8 +1,7 @@
 ---
 title: "Sample_Parameter_Estimation"
-output:
-  pdf_document: default
-  html_document: default
+output: github_document
+  
 ---
 
 ```{r setup, include=FALSE}
