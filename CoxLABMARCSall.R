@@ -12,9 +12,9 @@
   # Load libraries
   LoadLibraries <- 1
   # outcomeselection (1) all severe outcomes (2) ICU admission (3) death
-  outcomeselection <- 3
+  outcomeselection <- 1
   # Chose to include Firth's bias in the models
-  IncludeFirthBias <- 1
+  IncludeFirthBias <- 0
   # 0 - No imputation, 1- K nearest neighbour imputation, 2- MICE imputation
   ImputationAllowed <- 2
   # Model exclusively looking at comordbities (looks only at 1 hospital)
@@ -48,6 +48,8 @@ if (InstallPackages==1) {
   install.packages("tibble")
   install.packages("mbest")
   install.packages("nestfs")
+  install.packages("coxph")
+  install.packages("survcomp")
 }
 
 if (LoadLibraries==1) {
@@ -69,10 +71,14 @@ if (LoadLibraries==1) {
   library("mbest")
   library("ggplot2")
   library("pROC")
+  library("coxphf")
+  library("survival")
+  library("survcomp")
+  library("data.table")
 }
   
 # DATA PROCESSING ------------------------------------------------------
-# Read in data depending on day window  (1/3/5) & measurement compression (best/worst/mean)
+# Read in data depending on day window & best/worst/mean measurement compression
 setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/LABMARCS/Code/LABMARCS-main/LABMARCS-main")
   if (dateRange==1) {
     if (readingwanted==0) {
@@ -111,34 +117,76 @@ setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/L
 # Get current working directory so can revert at the end of the code
 mainDir <- getwd()
 # Name of folder for saving results from this model
-subDir <- "LogisticOutputs"
+subDir <- "CoxOutputs"
 # Create directory for saving outputs (works fine if it already exists)
 dir.create(file.path(mainDir, subDir), showWarnings = FALSE)
 # Set current working directory to this folder
 setwd(file.path(mainDir, subDir))
 
-# drop people who do not have a positive date (NEED TO FOLLOW UP WHY)
-fulldata$positiveDate <- as.Date(fulldata$positiveDate, format =  "%Y-%m-%d")
-fulldata <- subset(fulldata, !is.na(positiveDate))
-
+  # remove superfluous column
 fulldata <- subset(fulldata, select = -c(X))
 
-# Initial inspection of the data
-head(fulldata)
-summary(fulldata)
+# change dates to their appropriate class (character to date)
+fulldata$deathDate <- as.Date(fulldata$deathDate, format =  "%Y-%m-%d")
+fulldata$ITU_Start <- as.Date(fulldata$ITU_Start, format =  "%Y-%m-%d")
+fulldata$positiveDate <- as.Date(fulldata$positiveDate, format =  "%Y-%m-%d")
+fulldata$dischargeDate <- as.Date(fulldata$dischargeDate, format =  "%Y-%m-%d")
+fulldata$admissionDate <- as.Date(fulldata$admissionDate, format =  "%Y-%m-%d")
 
-# Select outcome variable
+# for those who are classed as +ve on admission, set +ve date to admision date
+fulldata$positiveDate <- fifelse(fulldata$OnAdmission==TRUE,fulldata$admissionDate,
+                                fulldata$positiveDate)
+
+# drop people who do not have a positive date (NEED TO FOLLOW UP WHY)
+fulldata <- subset(fulldata, !is.na(positiveDate))
+
+# calculate days until outcomes, 9999 reprents absence of outcome
+fulldata$daystodeath <- as.numeric(fulldata$deathDate) - as.numeric(fulldata$positiveDate)
+fulldata$daystoICU <- as.numeric(fulldata$ITU_Start) - as.numeric(fulldata$positiveDate)
+fulldata$daystodeath[is.na(fulldata$daystodeath)] <- 9999
+fulldata$daystoICU[is.na(fulldata$daystoICU)] <- 9999
+fulldata$daystosevereOutcome <- pmin(fulldata$daystodeath,fulldata$daystoICU)
+fulldata$daystodischarge <- as.numeric(fulldata$dischargeDate)- as.numeric(fulldata$positiveDate)
+
+# drop people who have -ve discharge dates (NEED TO FOLLOW UP WHY)
+fulldata <- subset(fulldata, daystodischarge>-1)
+
+# Select outcome variable (1) all severe outcomes (2) ICU admission (3) death
 if (outcomeselection == 1) {
-fulldata$outcome <- fulldata$severeOutcome
+fulldata$status <- fulldata$severeOutcome
+fulldata$time <- fifelse(fulldata$severeOutcome==TRUE,fulldata$daystosevereOutcome,
+                        fulldata$daystodischarge)
+                      
+
 } else if (outcomeselection == 2) {
-  fulldata$outcome <- fulldata$went_to_icu  
+  fulldata$status <- fulldata$went_to_icu
+  fulldata$time <- fifelse(fulldata$went_to_icu==TRUE,,fulldata$daystoICU,
+                          fulldata$daystodischarge)
   
 } else {
-  fulldata$outcome <- fulldata$died
+  fulldata$status <- fulldata$died
+  fulldata$time <- fifelse(fulldata$died==TRUE,fulldata$daystodeath,
+                          fulldata$daystodischarge)
 }
+fulldata$time <- as.numeric(fulldata$time)
+fulldata$status <- as.numeric(fulldata$status)
 
-# Remove rows without positive test result dates
-fulldata <- fulldata[complete.cases(fulldata[13]),]
+# drop any rows which have a negative time column (can happen for example if
+# COVID is caught in ICU and outcome is 'sent to ICU') although a thorough investigation is
+# perhaps needed to make sure this is the only scenario
+# drop people who have -ve discharge dates (NEED TO FOLLOW UP WHY)
+fulldata <- subset(fulldata, time>-1)
+
+# WARNING: THIS SECTION NEEDS WORK
+# there are times with values of 0, which needs addressing. This occurs for exampple
+# when someone is sent to ICU the same day of their admission/postive test result
+# for the time being we drop these troublesome values, but they need addressing
+fulldata <- subset(fulldata, time >0)
+min(fulldata$time)
+# there are also days with values of 9999 which indicates missing data at some point the
+# dates of interest, so we again ignore these for now
+fulldata <- subset(fulldata, time <9999)
+max(fulldata$time)
 
 if (Comorbidities==1) {
 # Only look at sites with comorbidities
@@ -148,7 +196,9 @@ fulldata<-fulldata[(fulldata$Site=="NBT"),]
 # Remove superfluous data columns 
 fulldata <- subset(fulldata, select = -c(died,went_to_icu,severeOutcome,N,coinfection,
                                          admissionDate,dischargeDate,ITU_Start,
-                                         ITU_End,deathDate,ID,Site,positiveDate))
+                                         ITU_End,deathDate,ID,Site,positiveDate,
+                                         daystodeath,daystoICU,daystodischarge,
+                                         daystosevereOutcome))
 
 if (Comorbidities==0) {
 # Remove comorbidities as variables if we aren't considering them
@@ -161,7 +211,7 @@ fulldata <- subset(fulldata, select = -c(PSI,NYHA_Heart_failure,CRB65_Score,
 }
 
 # number of events
-eventsnumber<-sum(fulldata$outcome,na.rm = "TRUE")
+eventsnumber<-sum(fulldata$status,na.rm = "TRUE")
 
 # Replace 'test not taken' with NA. Comment out to remove this step if wanted HOWEVER:
 # NOTE THAT THE MODEL HAS 'ALIASING ERRORS' WHEN NOT INCLUDING THIS LINE. NOT SURE WHY AT
@@ -184,8 +234,7 @@ fulldata <- fulldata[!is.na(fulldata$Age), ]
 
 
 # All others ()
-# EXCLUDE CONTINUOUS VARIABLES
-for (i in 3:(length(fulldata)-1)) {
+for (i in 3:(length(fulldata)-2)) {
   fulldata[,i] = as.factor(fulldata[,i])
 }
 
@@ -205,12 +254,11 @@ for (i in 3:(length(fulldata)-1)) {
 head(fulldata)
 summary(fulldata)
 
-# DROP IF OUTCOME IS MISSING? DOES THIS OCCUR?
-
+# Examine variables to be dropped
+summary(fulldata[, colMeans(is.na(fulldata)) > .30])
 # Drop variables where 70% or more of the values are NA
 fulldata <- fulldata[, colMeans(is.na(fulldata)) <= .70]
-# Examine dropped variables
-summary(fulldata[, colMeans(is.na(fulldata)) > .30])
+
 # Check the updated data
 summary(fulldata)
 
@@ -304,7 +352,7 @@ summary(fulldata)
   
   # Split the data into training and test set
   set.seed(1)
-  training.samples <- createDataPartition(fulldata$outcome, p = 0.8, list = FALSE)
+  training.samples <- createDataPartition(fulldata$status, p = 0.8, list = FALSE)
   train.data  <- fulldata[training.samples, ]
   test.data <- fulldata[-training.samples, ]
   summary(train.data)
@@ -318,7 +366,7 @@ summary(fulldata)
     # Keep only complete cases
     train.data <- train.data[complete.cases(train.data), ]
     test.data <- train.data[complete.cases(test.data), ]
-  }
+  } 
   if (ImputationAllowed==1) {
     # Impute missing values using k-nearest neighbour
     train.data <- kNN(train.data,k=5)
@@ -372,48 +420,55 @@ summary(fulldata)
   }
   
   summary(fulldata)
-  
 
 #----------------------------------------------------------------------
 
 # RUN SIMPLE PRELIMINARY MODELS
 
 # Initialise model outputs into lists
-modelunivar <- vector(mode = "list", length = (length(fulldata)-1))
-modeldemo <- vector(mode = "list", length = (length(fulldata)-3))
+modelunivar <- vector(mode = "list", length = (length(fulldata)-2))
+modeldemo <- vector(mode = "list", length = (length(fulldata)-4))
 if(IncludeFirthBias==0) {
-  for (i in 1:(length(fulldata)-1)) {
-    modelunivar[[i]] <- glm(fulldata$outcome ~ fulldata[,i]
-                            , family = "binomial")
+  for (i in 1:(length(fulldata)-2)) {
+    modelunivar[[i]] <- coxph(Surv(time,status) ~ fulldata[,i]
+                            , data = fulldata)
     summary(modelunivar[[i]])
     exp(modelunivar[[i]]$coefficients[1])
     exp(confint(modelunivar[[i]]))
   }
-  for (i in 3:(length(fulldata)-1)) {
-    modeldemo[[i]] <- glm(fulldata$outcome ~ fulldata[,i] + fulldata$Age + fulldata$Gender,
-                        family = "binomial")
+  for (i in 3:(length(fulldata)-2)) {
+    modeldemo[[i]] <- coxph(Surv(time,status) ~ fulldata[,i] + fulldata$Age + fulldata$Gender
+                              , data = fulldata)
     summary(modelunivar[[i]])
     exp(modelunivar[[i]]$coefficients[1])
     exp(confint(modelunivar[[i]]))
   }
-
+    #PLACE HOLDER CODE TO BE ADAPTED IF WE ADD CO-MORBIDITIES
+    #modelcomorb[i] <- glm(fulldata$status ~ chol + Age + sex, thal,
+    #                      family = "binomial")
 } else {
   # Method below utilises the Firth's bias approach
   # Note: modified-scores approach (pl=False) or maximum penalized likelihood (pl=True)
-  for (i in 1:(length(fulldata)-1)) {
-    modelunivar[[i]] <- glm(fulldata$outcome ~ fulldata[,i]
-                            , family = "binomial", method="firthglm.fit")
+  for (i in 1:(length(fulldata)-2)) {
+    modelunivar[[i]] <- coxphf(Surv(time,status) ~ fulldata[,i]
+                              , data = fulldata)
     summary(modelunivar[[i]])
     exp(modelunivar[[i]]$coefficients[1])
     exp(confint(modelunivar[[i]]))
   }
-  for (i in 3:(length(fulldata)-1)) {
-    modeldemo[[i]] <- glm(fulldata$outcome ~ fulldata[,i] + fulldata$Age + fulldata$Gender,
-                          family = "binomial", method="firthglm.fit")
+  for (i in 3:(length(fulldata)-2)) {
+    modeldemo[[i]] <- coxphf(Surv(time,status) ~ fulldata[,i] + fulldata$Age + fulldata$Gender
+                            , data = fulldata)
     summary(modelunivar[[i]])
     exp(modelunivar[[i]]$coefficients[1])
     exp(confint(modelunivar[[i]]))
   }
+  #PLACE HOLDER CODE TO BE ADAPTED IF WE ADD CO-MORBIDITIES. ADD LOOP.
+  #modelcomorb[i] <- glm(fulldata$outcome ~ chol + Age + sex, thal,
+  #                      family = "binomial", method="firthglm.fit")
+  #summary(modelcomorb[[i]])
+  #exp(modelcomorb[[i]]$coefficients[1])
+  #exp(confint(modelcomorb[[i]]))
 }
 
 #----------------------------------------------------------------------
@@ -425,55 +480,52 @@ if(IncludeFirthBias==0) {
 # Run model with/without Firth's bias
 if(IncludeFirthBias==0) {
   # Initial model using all input parameters without Firth's bias
-  globalmodel <- glm(outcome ~.,
-                data = train.data, family = "binomial")
+  globalmodel <- coxph(Surv(time,status) ~ .
+                   , data = fulldata)
 } else {
   # Method below utilises the Firth's bias approach
   # Note: modified-scores approach (pl=False) or maximum penalized likelihood (pl=True)
-  globalmodel <- glm(outcome ~ .,
-                  data = train.data, family="binomial", method="firthglm.fit")
+  globalmodel <- coxphf(Surv(time,status) ~ .
+                   , data = fulldata)
 }
 
 # Summarize the final selected model
 summary(globalmodel)
 
 # Return p-values (unadjusted)
-coef(summary(globalmodel))[,4]
+coef(summary(globalmodel))[,5]
 # Adjust the p-values using benjamini hochberg method
-adjustedp1 <- p.adjust(coef(summary(globalmodel))[,4], method = "fdr",
-                       n = length(coef(summary(globalmodel))[,4]))
+adjustedp1 <- p.adjust(coef(summary(globalmodel))[,5], method = "fdr",
+                       n = length(coef(summary(globalmodel))[,5]))
 # Return p-values (adjusted)
 adjustedp1
 
-# Examine odds ratios and 95% CIs
+# Examine hazard ratios and 95% CIs
 exp(globalmodel$coefficients)
-vcov(globalmodel)
-exp(confint.default(globalmodel))
+exp(confint(globalmodel))
+concordance1 <- globalmodel[["concordance"]][["concordance"]]
 
 # Check for multicollinearity in the model variables (any >5 are problematic)
 car::vif(globalmodel)
 # All are <5 and so we can be reasonably sure that we have met the 
 # assumption of collinearity
 
-# Model 1 predictions on test set (prob of >0.5 accepted as positive)
-probabilities1 <- predict(object = globalmodel, test.data, type = "response")
-predicted.classes1 <- ifelse(probabilities1 > 0.5, 1, 0)
-# Model accuracy
-mean(predicted.classes1==test.data$outcome)
-
-# Sensivity and specificity measures
-conf_matrix<-table(predicted.classes1,test.data$outcome)
-colnames(conf_matrix)=c(0,1)
-sensitivity(conf_matrix)
-specificity(conf_matrix)
-
-# find AUC and plot ROC curve
-g1 <- roc(outcome ~ probabilities1, data = test.data)
-auc(g1)
-png(file="globalROCLog.png")
-plot(g1)
-dev.off()
-BrierScore(globalmodel)
+# Model 1 predictions on the test set
+# Linear predictor, risk and expected no. events on globalmodel
+expectedglobalmodel <- predict(globalmodel,newdata=test.data,type="expected")
+expectedglobalmodel
+lpglobalmodel <- predict(globalmodel,newdata=test.data,type="lp")
+riskscoreglobalmodel <- predict(globalmodel,newdata=test.data,type="risk") # same as exp(lpglobalmodel)
+riskscoreglobalmodel
+# Survival probability
+survprobglobalmodel <- exp(-expectedglobalmodel)
+survprobglobalmodel
+# Concordance index
+pred_validation1 <- predict (globalmodel, newdata = test.data,type="risk")
+pred_validation1
+cindex_validation1 <- concordance.index(pred_validation1, surv.time = test.data$time,
+                                         surv.event=test.data$status, method = "noether")
+cindex1 <- cindex_validation1[["c.index"]]
 
 # Model 2
 
@@ -481,14 +533,15 @@ BrierScore(globalmodel)
 if(IncludeFirthBias==0) {
   # Initial model using all input parameters without Firth's bias
   # Using automated stepwise variable selection
-  stepmodel <- glm(outcome ~., data = train.data, family = binomial)
+  stepmodel <- coxph(Surv(time,status) ~ .
+                  , data = fulldata)
   stepAIC(stepmodel,trace = TRUE)
 } else {
   # Method below utilises the Firth's bias approach
   # Note: modified-scores approach (pl=False) or maximum penalized likelihood (pl=True)
   # Using automated stepwise variable selection
-  stepmodel <- glm(outcome ~., data = train.data, family = "binomial",
-                     method="firthglm.fit")
+  stepmodel <- coxphf(Surv(time,status) ~ .
+                  , data = fulldata)
     stepAIC(stepmodel,trace = TRUE)
 }
 
@@ -496,41 +549,39 @@ if(IncludeFirthBias==0) {
 summary(stepmodel)
 
 # Return p-values (unadjusted)
-coef(summary(stepmodel))[,4]
+summary(globalmodel)$coefficients[,5]
 # Adjust the p-values using benjamini hochberg method
-adjustedp2 <- p.adjust(coef(summary(stepmodel))[,4], method = "fdr",
-                       n = length(coef(summary(stepmodel))[,4]))
+adjustedp2 <- p.adjust(summary(globalmodel)$coefficients[,5], method = "BH",
+                       n = length(summary(globalmodel)$coefficients[,5]))
 # Return p-values (adjusted)
 adjustedp2
 
-# Examine odds ratios and 95% CIs
+# Examine hazard ratios and 95% CIs
 exp(stepmodel$coefficients)
-exp(confint.default(stepmodel))
+exp(confint(stepmodel))
 
 # Check for multicollinearity in the model variables (any >5 are problematic)
 car::vif(stepmodel)
 # All are <5 and so we can be reasonably sure that we have met the 
 # assumption of collinearity
 
-# Model 2 predictions on test set (prob of >0.5 accepted as positive)
-probabilities2 <- predict(object = stepmodel, test.data, type = "response")
-predicted.classes2 <- ifelse(probabilities2 > 0.5, 1, 0)
-# Model accuracy
-mean(predicted.classes2==test.data$outcome)
-
-# Sensivity and specificity measures
-conf_matrix<-table(predicted.classes2,test.data$outcome)
-colnames(conf_matrix)=c(0,1)
-sensitivity(conf_matrix)
-specificity(conf_matrix)
-
-# Plot ROC curve
-g2 <- roc(outcome ~ probabilities2, data = test.data)
-auc(g2)
-png(file="stepROCLog.png")
-plot(g2)
-dev.off()
-BrierScore(stepmodel)
+# Model 2 predictions on test set
+# Linear predictor, risk and expected no. events on stepmodel
+expectedstepmodel <- predict(stepmodel,newdata=test.data,type="expected")
+expectedstepmodel
+lpstepmodel <- predict(stepmodel,newdata=test.data,type="lp")
+riskscorestepmodel <- predict(stepmodel,newdata=test.data,type="risk") # same as exp(lpstepmodel)
+riskscorestepmodel
+# Survival probability
+survprobstepmodel <- exp(-expectedstepmodel)
+survprobstepmodel
+# Concordance index
+pred_validation2 <- predict (stepmodel, newdata = test.data,type="risk")
+pred_validation2
+cindex_validation2 <- concordance.index (pred_validation2, surv.time = test.data$time,
+                                         surv.event=test.data$status, method = "noether")
+cindex2 <- cindex_validation2[["c.index"]]
+cindex2
 
 # Model 3
 # First we perform nested cross-validation to report on the generalised performance
@@ -544,92 +595,61 @@ set.seed(NULL)
 
 # Initialise outcome measures
 lambda.store <- vector("numeric", length=repeats*outsidefolds)
-auc <- vector("numeric", length=repeats*outsidefolds)
-brier <- vector("numeric", length=repeats*outsidefolds)
+cindex <- vector("numeric", length=repeats*outsidefolds)
 varnames <- vector(mode = "list", length=repeats*outsidefolds)
 varratios <- vector(mode = "list", length=repeats*outsidefolds)
-roccurve <- vector(mode = "list", length=repeats*outsidefolds)
 
 for(j in 1:repeats) {
   # Randomly shuffle the data
   fulldata<-fulldata[sample(nrow(fulldata)),]
-  # Create 10 equally sized outer folds
+  # Create equally sized outer folds
   data.outerfolds <- cut(seq(1,nrow(fulldata)),breaks=outsidefolds,labels=FALSE)
   for(i in 1:outsidefolds){
     #Segement your data by fold using the which() function 
     testIndexes <- which(data.outerfolds==i,arr.ind=TRUE)
     test.data <- fulldata[testIndexes, ]
     train.data <- fulldata[-testIndexes, ]
-    x <- model.matrix(outcome~., train.data)[,-1]
+    
+    # Make input (x)
+    x <- model.matrix(Surv(time, status) ~ ., data = train.data)
+    # Make input (y)
+    y <- train.data[,(length(test.data)-1):(length(test.data))]
+    y <- y[,c(2,1)]
+    y <- data.matrix(y)
     # Determine lambda.1se parameter over inner folds for the training data
-    cv.lasso <- cv.glmnet(x,train.data$outcome, alpha = 1, data = train.data,  nfolds = insidefolds,
-                          family = "binomial")
-    lambda.store[outsidefolds*(j-1)+i] <- cv.lasso$lambda.1se
-    LASSORNCVmodel <- glmnet(x, train.data$outcome, alpha = 1, family = "binomial",
-                     lambda = cv.lasso$lambda.1se)
-    # Test the best predicted lambda on the remaining data in the outer fold
-    x.test <- model.matrix(outcome ~., test.data)[,-1]
-    probabilities <- LASSORNCVmodel %>% predict(newx = x.test, type="response")
-    predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
-    # Model accuracy
-    mean(predicted.classes==test.data$outcome)
+    cvfit <- cv.glmnet(x, y, family = "cox", type.measure = "C", nfolds=insidefolds)
+    LASSORNCVmodel <- glmnet(x, y, alpha = 1, family = "cox",
+                     lambda = cvfit$lambda.1se)
+    lambda.store[outsidefolds*(j-1)+i] <- cvfit$lambda.1se
     
-    # Sensivity and specificity measures
-    conf_matrix<-table(predicted.classes,test.data$outcome)
-    colnames(conf_matrix)=c(0,1)
-    #sens<-sensitivity(conf_matrix)
-    #spec<-specificity(conf_matrix)
+    # Linear predictor, risk and expected no. events on LASSOmodel
+    xtest <- model.matrix(Surv(time, status) ~ ., data = test.data)
+    lpLASSORNCVmodel <- predict(LASSORNCVmodel,newx=xtest,type="link")
+    riskscoreLASSORNCVmodel <- predict(LASSORNCVmodel,newx=xtest,type="response") # same as exp(lpLASSOmodel)
     
-    # Plot ROC curve
-    roccurve[[outsidefolds*(j-1)+i]] <- roc(outcome ~ c(probabilities), data = test.data)
-    auc[outsidefolds*(j-1)+i]<- auc(roccurve[[outsidefolds*(j-1)+i]])
-    #plot(roccurve)
-    # Brier score
-    f_t <- probabilities
-    o_t <- test.data$outcome
-    brier[outsidefolds*(j-1)+i] <- mean(((f_t) - o_t)^2)
+    # Concordance index
+    ytest <- test.data[,(length(test.data)-1):(length(test.data))]
+    ytest <- ytest[,c(2,1)]
+    ytest <- data.matrix(ytest)
+    pred = predict(LASSORNCVmodel, newx = xtest)
+    cindex[outsidefolds*(j-1)+i]<-apply(pred, 2, Cindex, y=ytest)
+    cv.glmnet(x, y, family = "cox", type.measure = "C")
     
     modelcoefs <- exp(coef(LASSORNCVmodel))
     varnames[[outsidefolds*(j-1)+i]] <- modelcoefs@Dimnames[[1]]
     varratios[[outsidefolds*(j-1)+i]] <- modelcoefs@x
-    
   }
 }
 
-mean(auc)
-quantile(auc, c(.025, .50, .975))
-AUCRNCV <- t.test(auc)
-t.test(auc)$"conf.int"
-mean(brier)
-quantile(brier, c(.025, .50, .975))
-t.test(brier)
-brierRNCV <- t.test(brier)$"conf.int"
+mean(cindex)
+quantile(cindex, c(.025, .50, .975)) 
 mean(lambda.store)
-quantile(lambda.store, c(.025, .50, .975))
-t.test(lambda.store)
-t.test(lambda.store)$"conf.int"
-hist(auc,plot=TRUE)
-hist(brier,plot=TRUE)
+quantile(lambda.store, c(.025, .50, .975)) 
+hist(cindex,plot=TRUE)
 hist(lambda.store,plot=TRUE)
 
-# plot the ROC curves for all models to show uncertainty
-png(file="LASSOROCRNCVLog.png")
-ggroc(roccurve, legacy.axes = T) +
-  geom_abline(slope = 1 ,intercept = 0) + # add identity line
-  theme(
-    panel.background = element_blank(),
-    legend.position = "none",
-    axis.title.x = element_text(size =18, face = 'bold'),
-    axis.title.y = element_text(size =18, face = 'bold'),
-    panel.border = element_rect(size = 2, fill = NA), 
-    axis.text.x = element_text(size = 14, face ='bold'),
-    axis.text.y = element_text(size = 14, face ='bold')) +
-  xlab('1 - Specificity') +
-  ylab('Sensitivity') +
-  scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
-  scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25))
-dev.off()
-
+# The stability analysis code below runs, but I think its using HRs not ORs as intended
+# plus its for a cox model ouput so may have mistakes anyway.
 if (Comorbidities==0) {
   # Stability analysis--------------------------------------------------------
   # Initialize vectors and arrays
@@ -676,13 +696,13 @@ if (Comorbidities==0) {
   
   # (iii) Inclusion frequencies for each variable
   # Make histogram showing the number of variables included in each model
-  png("stabnovariablesLog.png")
+  png("stabnovariablesCox.png")
   hist(variablesinmodel, main = "Number of variables selected over all models",
        xlab = "Number of variables", breaks=(0:length(varcount)))
   dev.off()
   # Make a bar plot of the included variables
   par(mar= c(8,4,4,4))
-  png(file="stabfreqvariablesLog.png")
+  png(file="stabfreqvariablesCox.png")
   barplotstab <- barplot(varcount[2:length(varcount)]/(repeats*outsidefolds)*100,
                          main = 'Model Stability', ylab = "Frequency (%)",
                          names.arg = varnames[[1]][2:length(varcount)], las=2, cex.names=0.75)
@@ -823,50 +843,32 @@ if (Comorbidities==0) {
 
 #---------------------------------------------------------------------------
 
-#---------------------------------------------------------------------------
-
 # Create the final model over the whole dataset, with the expected performance from nested CV
-x <- model.matrix(outcome~., fulldata)[,-1]
-cv.lasso <- cv.glmnet(x,fulldata$outcome, alpha = 1, data= fulldata,  nfolds = insidefolds,
-                      family = "binomial")
-plot(cv.lasso)
-LASSOmodel <- glmnet(x, fulldata$outcome, alpha = 1, family = "binomial",
-                 lambda = cv.lasso$lambda.1se)
+x <- model.matrix(Surv(time, status) ~ ., data = fulldata)
+# Make input (y)
+y <- fulldata[,(length(test.data)-1):(length(test.data))]
+y <- y[,c(2,1)]
+y <- data.matrix(y)
+# Determine lambda parameter (we want to safely maximise lambda to reduce
+# the number of features) using 10-fold cross-validation
+cvfit <- cv.glmnet(x, y, family = "cox", type.measure = "C", nfolds=insidefolds)
+plot(cvfit)
+LASSOmodel <- glmnet(x, y, alpha = 1, family = "cox",
+                     lambda = cvfit$lambda.1se)
+lambda.store[outsidefolds*(j-1)+i] <- cvfit$lambda.1se
 
-# Display regression coefficients
-coef(LASSOmodel)
-# Examine odds ratios
-exp(coef(LASSOmodel))
+# Linear predictor, risk and expected no. events on LASSOmodel
+xtest <- model.matrix(Surv(time, status) ~ ., data = test.data)
+lpLASSOmodel <- predict(LASSOmodel,newx=xtest,type="link")
+riskscoreLASSOmodel <- predict(LASSOmodel,newx=xtest,type="response") # same as exp(lpLASSOmodel)
 
-# Test the best predicted lambda on the remaining data in the outer fold
-x.test <- model.matrix(outcome ~., test.data)[,-1]
-probabilities <- LASSOmodel %>% predict(newx = x.test, type="response")
-predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
-# Model accuracy
-mean(predicted.classes==test.data$outcome)
-
-# Plot ROC curve and find AUC
-roccurve3 <- roc(outcome ~ c(probabilities), data = test.data)
-auc<- auc(roccurve3)
-png(file="LASSOROCLog.png")
-ggroc(roccurve3, legacy.axes = T) +
-  geom_abline(slope = 1 ,intercept = 0) + # add identity line
-  theme(
-    panel.background = element_blank(), 
-    axis.title.x = element_text(size =18, face = 'bold'),
-    axis.title.y = element_text(size =18, face = 'bold'),
-    panel.border = element_rect(size = 2, fill = NA), 
-    axis.text.x = element_text(size = 14, face ='bold'),
-    axis.text.y = element_text(size = 14, face ='bold')) +
-  xlab('1 - Specificity') +
-  ylab('Sensitivity') +
-  scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
-  scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25))
-dev.off()
-# Brier score
-f_t <- probabilities
-o_t <- test.data$outcome
-brier<- mean(((f_t) - o_t)^2)
+# Concordance index
+ytest <- test.data[,(length(test.data)-1):(length(test.data))]
+ytest <- ytest[,c(2,1)]
+ytest <- data.matrix(ytest)
+pred = predict(LASSOmodel, newx = xtest)
+cindex[outsidefolds*(j-1)+i]<-apply(pred, 2, Cindex, y=ytest)
+cv.glmnet(x, y, family = "cox", type.measure = "C")
 # ---------------------------------------------------------------------
 
 # SAVE ALL KEY DATA FROM THE MODELs IN THE subDir-------------
@@ -874,37 +876,37 @@ brier<- mean(((f_t) - o_t)^2)
 # Save all variables of interest (LOTS OF POTENTIAL EXTRA DETAILS COULD BE SAVED
 # BUT I HAVE POPULATED WITH THE MINIMUM NEEDED TO CROSS COMPARE MODELS)
 
-  # MODELS
-  # Global model (applied to singular 80% testset)
-  saveRDS(globalmodel,"globalmodel.rds")
-  # Stepwise model (applied to singular 80% testset)
-  saveRDS(stepmodel,"stepmodel.rds")
-  # LASSO model (applied to entire dataset)
-  saveRDS(LASSOmodel,"LASSOmodel.rds")
-  
-  # UNCERAINTY IN LASSO MODEL PERFORMANCE (REPEATED NESTED CROSS-VALIDATION)
-  # AUC
-  saveRDS(AUCRNCV,"AUCRNCV.rds")
-  # Brier
-  saveRDS(brierRNCV,"brierRNCV.rds")
+# MODELS
+# Global model (applied to singular 80% testset)
+saveRDS(globalmodel,"globalmodel.rds")
+# Stepwise model (applied to singular 80% testset)
+saveRDS(stepmodel,"stepmodel.rds")
+# LASSO model (applied to entire dataset)
+saveRDS(LASSOmodel,"LASSOmodel.rds")
 
-  # STABILITY ANALYSIS ON THE LASSO MODELS
-  # (i)
-  saveRDS(EPVmean, "EPVmean.rds")
-  # (ii)
-  saveRDS(globalcoefs,"globalcoefs.rds")
-  saveRDS(globalconfints,"globalconfints.rds")
-  # (iii)
-  saveRDS(varcount,"varcount.rds")
-  # (iv)
-  saveRDS(RMSD,"RMSD.rds")
-  # (v)
-  saveRDS(relative_bias,"relative_bias.rds")
-  # (vi)
-  saveRDS(ModelList,"ModelList.rds")
-  # (vii)
-  saveRDS(chisquaredpvalue,"chisquaredpvalue.rds")
-  saveRDS(flaggedpairs,"flaggedpairs.rds")
+# UNCERAINTY IN LASSO MODEL PERFORMANCE (REPEATED NESTED CROSS-VALIDATION)
+# AUC
+saveRDS(AUCRNCV,"AUCRNCV.rds")
+# Brier
+saveRDS(brierRNCV,"brierRNCV.rds")
+
+# STABILITY ANALYSIS ON THE LASSO MODELS
+# (i)
+saveRDS(EPVmean, "EPVmean.rds")
+# (ii)
+saveRDS(globalcoefs,"globalcoefs.rds")
+saveRDS(globalconfints,"globalconfints.rds")
+# (iii)
+saveRDS(varcount,"varcount.rds")
+# (iv)
+saveRDS(RMSD,"RMSD.rds")
+# (v)
+saveRDS(relative_bias,"relative_bias.rds")
+# (vi)
+saveRDS(ModelList,"ModelList.rds")
+# (vii)
+saveRDS(chisquaredpvalue,"chisquaredpvalue.rds")
+saveRDS(flaggedpairs,"flaggedpairs.rds")
 
 # Return working diretory to the parent folder
 setwd <- mainDir
