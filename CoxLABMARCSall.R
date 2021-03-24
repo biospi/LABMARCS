@@ -5,6 +5,7 @@
 # Author: Louis MacGregor
 
 # Pre-set switches in the code (change to modify desired behaviours)
+setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/LABMARCS/Code/LABMARCS-main/LABMARCS-main")
   # Set LookForUpdates to 1 if you want to search for and install newest R version
   LookForUpdates <- 0
   # Set InstallPackAges to 1 if you want to install the packAges listed below all at once
@@ -16,14 +17,14 @@
   # Chose to include Firth's bias in the models
   IncludeFirthBias <- 0
   # 0 - No imputation, 1- K nearest neighbour imputation, 2- MICE imputation
-  ImputationAllowed <- 2
+  ImputationAllowed <- 1
   # Model exclusively looking at comordbities (looks only at 1 hospital)
   Comorbidities <- 0
   # MasterAnalysisOn==1 prevents the dateRange and readingwanted variables from
   # being overwritten, but the option to turn this off and run this script without
   # first running MasterAnalysis.R is available by setting MasterAnalysisOn==0 and then
   # manually selecting the dateRange and readingwanted variables.
-  MasterAnalysisOn <- 0
+  MasterAnalysisOn <- 1
   if (MasterAnalysisOn==0) {
     dateRange <- 5 # 1, 3 or 5 days
     readingwanted <- 1 # 0-worst, 1-first, 2-mean
@@ -79,7 +80,6 @@ if (LoadLibraries==1) {
   
 # DATA PROCESSING ------------------------------------------------------
 # Read in data depending on day window & best/worst/mean measurement compression
-setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/LABMARCS/Code/LABMARCS-main/LABMARCS-main")
   if (dateRange==1) {
     if (readingwanted==0) {
       fulldata <- read.csv(file="totalBinary1worst.csv",na.strings=c(""))
@@ -118,10 +118,14 @@ setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/L
 mainDir <- getwd()
 # Name of folder for saving results from this model
 subDir <- "CoxOutputs"
+# Name of sub sub folders containing results for micro-choices in the models
+# e.g. compression type of the data, or the number of days in the window for results
+subsubDir <- paste(dateRange,"days",readingwanted)
 # Create directory for saving outputs (works fine if it already exists)
-dir.create(file.path(mainDir, subDir), showWarnings = FALSE)
+dir.create(file.path(mainDir, subDir))
+dir.create(file.path(mainDir, subDir, subsubDir))
 # Set current working directory to this folder
-setwd(file.path(mainDir, subDir))
+setwd(file.path(mainDir, subDir, subsubDir))
 
   # remove superfluous column
 fulldata <- subset(fulldata, select = -c(X))
@@ -641,7 +645,7 @@ for(j in 1:repeats) {
   }
 }
 
-mean(cindex)
+CstatRNCV <- mean(cindex)
 quantile(cindex, c(.025, .50, .975)) 
 mean(lambda.store)
 quantile(lambda.store, c(.025, .50, .975)) 
@@ -651,6 +655,9 @@ hist(lambda.store,plot=TRUE)
 # The stability analysis code below runs, but I think its using HRs not ORs as intended
 # plus its for a cox model ouput so may have mistakes anyway.
 if (Comorbidities==0) {
+  # This section is formatted based on steps (i)-(vii) in the paper detailed below
+  # 'Variable selection - A review and recommendations for the practicing statistician'
+  # - George Heinz. Located: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5969114/
   # Stability analysis--------------------------------------------------------
   # Initialize vectors and arrays
   # Count of the number of of times each variable is used in a model
@@ -886,7 +893,7 @@ saveRDS(LASSOmodel,"LASSOmodel.rds")
 
 # UNCERAINTY IN LASSO MODEL PERFORMANCE (REPEATED NESTED CROSS-VALIDATION)
 # AUC
-saveRDS(AUCRNCV,"AUCRNCV.rds")
+saveRDS(CstatRNCV,"CstatRNCV.rds")
 # Brier
 saveRDS(brierRNCV,"brierRNCV.rds")
 

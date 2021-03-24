@@ -5,6 +5,7 @@
 # Author: Louis MacGregor
 
 # Pre-set switches in the code (change to modify desired behaviours)
+  setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/LABMARCS/Code/LABMARCS-main/LABMARCS-main")
   # Set LookForUpdates to 1 if you want to search for and install newest R version
   LookForUpdates <- 0
   # Set InstallPackAges to 1 if you want to install the packAges listed below all at once
@@ -16,17 +17,17 @@
   # Chose to include Firth's bias in the models
   IncludeFirthBias <- 1
   # 0 - No imputation, 1- K nearest neighbour imputation, 2- MICE imputation
-  ImputationAllowed <- 2
+  ImputationAllowed <- 1
   # Model exclusively looking at comordbities (looks only at 1 hospital)
   Comorbidities <- 0
   # MasterAnalysisOn==1 prevents the dateRange and readingwanted variables from
   # being overwritten, but the option to turn this off and run this script without
   # first running MasterAnalysis.R is available by setting MasterAnalysisOn==0 and then
   # manually selecting the dateRange and readingwanted variables.
-  MasterAnalysisOn <- 0
+  MasterAnalysisOn <- 1
   if (MasterAnalysisOn==0) {
-    dateRange <- 5 # 1, 3 or 5 days
-    readingwanted <- 1 # 0-worst, 1-first, 2-mean
+    dateRange <- 1 # 1, 3 or 5 days
+    readingwanted <- 0 # 0-worst, 1-first, 2-mean
   }
 
 if (LookForUpdates==1) {
@@ -73,7 +74,6 @@ if (LoadLibraries==1) {
   
 # DATA PROCESSING ------------------------------------------------------
 # Read in data depending on day window  (1/3/5) & measurement compression (best/worst/mean)
-setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/LABMARCS/Code/LABMARCS-main/LABMARCS-main")
   if (dateRange==1) {
     if (readingwanted==0) {
       fulldata <- read.csv(file="totalBinary1worst.csv",na.strings=c(""))
@@ -112,10 +112,14 @@ setwd("C:/Users/lm13381/OneDrive - University of Bristol/Documents/AMR Project/L
 mainDir <- getwd()
 # Name of folder for saving results from this model
 subDir <- "LogisticOutputs"
+# Name of sub sub folders containing results for micro-choices in the models
+# e.g. compression type of the data, or the number of days in the window for results
+subsubDir <- paste(dateRange,"days",readingwanted)
 # Create directory for saving outputs (works fine if it already exists)
-dir.create(file.path(mainDir, subDir), showWarnings = FALSE)
+dir.create(file.path(mainDir, subDir))
+dir.create(file.path(mainDir, subDir, subsubDir))
 # Set current working directory to this folder
-setwd(file.path(mainDir, subDir))
+setwd(file.path(mainDir, subDir, subsubDir))
 
 # drop people who do not have a positive date (NEED TO FOLLOW UP WHY)
 fulldata$positiveDate <- as.Date(fulldata$positiveDate, format =  "%Y-%m-%d")
@@ -401,18 +405,18 @@ if(IncludeFirthBias==0) {
   # Method below utilises the Firth's bias approach
   # Note: modified-scores approach (pl=False) or maximum penalized likelihood (pl=True)
   for (i in 1:(length(fulldata)-1)) {
-    modelunivar[[i]] <- glm(fulldata$outcome ~ fulldata[,i]
-                            , family = "binomial", method="firthglm.fit")
-    summary(modelunivar[[i]])
-    exp(modelunivar[[i]]$coefficients[1])
-    exp(confint(modelunivar[[i]]))
+#    modelunivar[[i]] <- glm(fulldata$outcome ~ fulldata[,i]
+#                            , family = "binomial", method="firthglm.fit")
+#    summary(modelunivar[[i]])
+#    exp(modelunivar[[i]]$coefficients[1])
+#    exp(confint(modelunivar[[i]]))
   }
   for (i in 3:(length(fulldata)-1)) {
-    modeldemo[[i]] <- glm(fulldata$outcome ~ fulldata[,i] + fulldata$Age + fulldata$Gender,
-                          family = "binomial", method="firthglm.fit")
-    summary(modelunivar[[i]])
-    exp(modelunivar[[i]]$coefficients[1])
-    exp(confint(modelunivar[[i]]))
+#    modeldemo[[i]] <- glm(fulldata$outcome ~ fulldata[,i] + fulldata$Age + fulldata$Gender,
+#                          family = "binomial", method="firthglm.fit")
+#    summary(modelunivar[[i]])
+#    exp(modelunivar[[i]]$coefficients[1])
+#    exp(confint(modelunivar[[i]]))
   }
 }
 
@@ -632,6 +636,9 @@ dev.off()
 
 if (Comorbidities==0) {
   # Stability analysis--------------------------------------------------------
+  # This section is formatted based on steps (i)-(vii) in the paper detailed below
+  # 'Variable selection - A review and recommendations for the practicing statistician'
+  # - George Heinz. Located: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5969114/
   # Initialize vectors and arrays
   # Count of the number of of times each variable is used in a model
   varcount <- vector("numeric", length=length(varratios[[1]]))
