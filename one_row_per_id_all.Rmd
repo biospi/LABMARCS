@@ -759,6 +759,19 @@ FER2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,FER$ID)
 
+fer_comparator <- function(v,age,gender){
+  # upper limit of normal
+  uln = 
+  ifelse(gender == "M", 490,
+  ifelse(age < 45, 445,470))
+  
+  value = 
+  ifelse(v < uln, "Normal",
+  ifelse(v < 735, "Mild",
+  ifelse(v < 2450, "Moderate","Severe")))
+  return(value)
+}
+
 for (id in unique(commonIDs)){
   # Get all dates for this ID and variable
   idDates = FER[FER$ID==id,]$date
@@ -771,27 +784,14 @@ for (id in unique(commonIDs)){
   # If all_values contains any values, then proceed
   if(length(!is.na(all_values))>0 & !is.na(idPositive)) {
     if (readingwanted == 0) {
-    # Determine the lowest value
-    lowest = suppressWarnings(min(all_values,na.rm=TRUE))
+   
     # Determine the highest value
     highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
+  
     age = total$Age[total$ID==id]
     gender = total$Gender[total$ID==id]
-
-    if (gender =="M"){
-      # If male
-      value = if_else((lowest < 33 | highest > 490),"Abnormal","Normal")
-    } else {
-      # If female and < 45
-      if(age <45){
-        value = if_else((lowest < 15 | highest > 445),"Abnormal","Normal")
-      } else {
-        # If female and > 45
-        value = if_else((lowest < 30 | highest > 470),"Abnormal","Normal")
-      }
-    }
+    
+    value = fer_comparator(highest,age,gender)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
@@ -800,36 +800,14 @@ for (id in unique(commonIDs)){
     age = total$Age[total$ID==id]
     gender = total$Gender[total$ID==id]
 
-    if (gender =="M"){
-      # If male
-      value = if_else((first < 33 | first > 490),"Abnormal","Normal")
-    } else {
-      # If female and < 45
-      if(age <45){
-        value = if_else((first < 15 | first > 445),"Abnormal","Normal")
-      } else {
-        # If female and > 45
-        value = if_else((first < 30 | first > 470),"Abnormal","Normal")
-      }
-    }
+    value = fer_comparator(first,age,gender)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      age = total$Age[total$ID==id]
+    average = mean(all_values)
+    age = total$Age[total$ID==id]
     gender = total$Gender[total$ID==id]
 
-    if (gender =="M"){
-      # If male
-      value = if_else((average < 33 | average > 490),"Abnormal","Normal")
-    } else {
-      # If female and < 45
-      if(age <45){
-        value = if_else((average < 15 | average > 445),"Abnormal","Normal")
-      } else {
-        # If female and > 45
-        value = if_else((average < 30 | average > 470),"Abnormal","Normal")
-      }
-    }
+    value = fer_comparator(average,age,gender)
     }
     # Add this 
     FER2 <- FER2 %>% add_row(ID=id,FER_val=value)
@@ -868,6 +846,13 @@ fib2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,fib$ID)
 
+fib_comparator <- function(v){
+  value = 
+  ifelse(v < 1, "Severe",
+  ifelse(v < 1.8, "Mild","Normal"))
+  return(value)
+}
+
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -883,21 +868,18 @@ for (id in (unique(commonIDs))){
     if (readingwanted == 0) {
     # Determine the lowest value
     lowest = suppressWarnings(min(all_values,na.rm=TRUE))
-    # Determine the highest value
-    highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
-    value = if_else((lowest < 1.8 | highest > 4),"Abnormal","Normal")
+    
+    value = fib_comparator(lowest)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
     # assign "Abnormal" if outside clinical range, else "Normal"
-    value = if_else((first < 1.8 | first > 4),"Abnormal","Normal")
+    value = fib_comparator(first)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      value = if_else((average < 1.8 | average > 4),"Abnormal","Normal")
+    average = mean(all_values)
+    value = fib_comparator(average)
     }
     # Add this 
     fib2 <- fib2 %>% add_row(ID=id,fib_val=value)
@@ -998,6 +980,17 @@ HB2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,HB$ID)
 
+hb_comparator <- function(v,gender){
+  # Lower limit of normal
+  lln = ifelse(gender == "M", 130,120)
+  
+  value = 
+  ifelse(v < 80, "Severe",
+  ifelse(v < 100, "Moderate",
+  ifelse(v < lln, "Mild","Normal")))
+  return(value)
+}
+
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -1016,39 +1009,16 @@ for (id in (unique(commonIDs))){
     if (readingwanted == 0) {
     # Determine the lowest value
     lowest = suppressWarnings(min(all_values,na.rm=TRUE))
-    # Determine the highest value
-    highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
-    if(gender == "M"){
-      # If male
-      value = if_else((lowest < 130 | highest > 170),"Abnormal","Normal")
-    } else{
-      # If female
-      value = if_else((lowest < 120 | highest > 150),"Abnormal","Normal")
-    }
+    value = hb_comparator(lowest,gender)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
-    # assign "Abnormal" if outside clinical range, else "Normal"
-     if(gender == "M"){
-      # If male
-      value = if_else((first < 130 | first > 170),"Abnormal","Normal")
-    } else{
-      # If female
-      value = if_else((first < 120 | first > 150),"Abnormal","Normal")
-    }
+    value = hb_comparator(first,gender)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-       if(gender == "M"){
-      # If male
-      value = if_else((average < 130 | average > 170),"Abnormal","Normal")
-    } else{
-      # If female
-      value = if_else((average < 120 | average > 150),"Abnormal","Normal")
-    }
+    average = mean(all_values)
+    value = hb_comparator(average,gender)   
     }
     # Add this 
     HB2 <- HB2 %>% add_row(ID=id,HB_val=value)
@@ -1148,6 +1118,14 @@ LDH2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,LDH$ID)
 
+LDH_comparator <- function(v){
+  value = 
+  ifelse(v > 1440, "Severe",
+  ifelse(v > 720, "Moderate",
+  ifelse(v > 480, "Mild","Normal")))
+  return(value)
+}
+
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -1162,23 +1140,19 @@ for (id in (unique(commonIDs))){
   # If all_values contains any values, then proceed
   if(length(!is.na(all_values))>0 & !is.na(idPositive)) {
     if (readingwanted == 0) {
-    # Determine the lowest value
-    lowest = suppressWarnings(min(all_values,na.rm=TRUE))
     # Determine the highest value
     highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
-    value = if_else((lowest < 240 | highest > 480),"Abnormal","Normal")
+    value = LDH_comparator(highest)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
     # assign "Abnormal" if outside clinical range, else "Normal"
-    value = if_else((first < 240 | first > 480),"Abnormal","Normal")
+    value = LDH_comparator(first)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      value = if_else((average < 240 | average > 480),"Abnormal","Normal")
+    average = mean(all_values)
+    value = LDH_comparator(average)
     }
     # Add this 
     LDH2 <- LDH2 %>% add_row(ID=id,LDH_val=value)
@@ -1278,6 +1252,15 @@ PLT2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,PLT$ID)
 
+LDH_comparator <- function(v){
+  value = 
+  ifelse(v < 50, "Severe",
+  ifelse(v < 100, "Moderate",
+  ifelse(v < 150, "Mild","Normal")))
+  return(value)
+}
+
+
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -1294,21 +1277,17 @@ for (id in (unique(commonIDs))){
     if (readingwanted == 0) {
     # Determine the lowest value
     lowest = suppressWarnings(min(all_values,na.rm=TRUE))
-    # Determine the highest value
-    highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
-    value = if_else((lowest < 150 | highest > 450),"Abnormal","Normal")
+    value = LDH_comparator(lowest)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
     # assign "Abnormal" if outside clinical range, else "Normal"
-    value = if_else((first < 150 | first > 450),"Abnormal","Normal")
+    value = LDH_comparator(first)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      value = if_else((average < 150 | average > 450),"Abnormal","Normal")
+    average = mean(all_values)
+    value = LDH_comparator(average)
     }
     # Add this 
     PLT2 <- PLT2 %>% add_row(ID=id,PLT_val=value)
@@ -1486,6 +1465,15 @@ FBCLymph2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,FBCLymph$ID)
 
+Lymph_comparator <- function(v){
+  value = 
+  ifelse(v < 0.49, "Severe",
+  ifelse(v < 0.99, "Moderate",
+  ifelse(v < 1.49, "Mild",
+  ifelse(v < 4.5, "Normal","Severe"))))
+  return(value)
+}
+
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -1506,17 +1494,17 @@ for (id in (unique(commonIDs))){
     highest = suppressWarnings(max(all_values,na.rm=TRUE))
     # Compare the lowest and highest values against the range, evaluate to true if
     # either are outside the range, and assign "Abnormal", else "Normal"
-    value = if_else((lowest < 1.5 | highest > 4.5),"Abnormal","Normal")
+    value = Lymph_comparator(highest)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
     # assign "Abnormal" if outside clinical range, else "Normal"
-    value = if_else((first < 1.5 | first > 4.5),"Abnormal","Normal")
+    value = Lymph_comparator(first)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      value = if_else((average < 1.5 | average > 4.5),"Abnormal","Normal")
+    average = mean(all_values)
+    value = Lymph_comparator(average)
     }
     # Add this 
     FBCLymph2 <- FBCLymph2 %>% add_row(ID=id,Lymphocytes=value)
@@ -1546,6 +1534,15 @@ FBCNeutr2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,FBCNeutr$ID)
 
+Neutr_comparator <- function(v){
+  value = 
+  ifelse(v < 0.5, "Severe",
+  ifelse(v < 1, "Moderate",
+  ifelse(v < 2, "Mild",
+  ifelse(v < 7.5, "Normal", "Severe"))))
+  return(value)
+}
+
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -1562,21 +1559,18 @@ for (id in (unique(commonIDs))){
     if (readingwanted == 0) {
     # Determine the lowest value
     lowest = suppressWarnings(min(all_values,na.rm=TRUE))
-    # Determine the highest value
-    highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
-    value = if_else((lowest < 2 | highest > 7.5),"Abnormal","Normal")
+    
+    value = Neutr_comparator(lowest)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
     # assign "Abnormal" if outside clinical range, else "Normal"
-    value = if_else((first < 2 | first > 7.5),"Abnormal","Normal")
+    value = Neutr_comparator(first)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      value = if_else((average < 2 | average > 7.5),"Abnormal","Normal")
+    average = mean(all_values)
+    value = Neutr_comparator(average)
     }
     # Add this 
     FBCNeutr2 <- FBCNeutr2 %>% add_row(ID=id,Neutrophils=value)
@@ -1605,6 +1599,14 @@ FBCWCC2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,FBCWCC$ID)
 
+WCC_comparator <- function(v){
+  value = 
+  ifelse(v < 0.5, "Severe",
+  ifelse(v < 1, "Moderate",
+  ifelse(v < 4, "Mild",
+  ifelse(v < 11, "Normal", "Severe"))))
+  return(value)
+}
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -1621,21 +1623,18 @@ for (id in (unique(commonIDs))){
     if (readingwanted == 0) {
     # Determine the lowest value
     lowest = suppressWarnings(min(all_values,na.rm=TRUE))
-    # Determine the highest value
-    highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
-    value = if_else((lowest < 4 | highest > 11),"Abnormal","Normal")
+    
+    value = WCC_comparator(lowest)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
     # assign "Abnormal" if outside clinical range, else "Normal"
-    value = if_else((first < 4 | first > 11),"Abnormal","Normal")
+    value = WCC_comparator(first)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      value = if_else((average < 4 | average > 11),"Abnormal","Normal")
+    average = mean(all_values)
+    value = WCC_comparator(average)
     }
     # Add this 
     FBCWCC2 <- FBCWCC2 %>% add_row(ID=id,WCC=value)
@@ -1665,6 +1664,14 @@ FBCNLR2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,FBCNLR$ID)
 
+NLR_comparator <- function(v){
+  value = 
+  ifelse(v < 3, "Normal",
+  ifelse(v < 8, "Mild",
+  ifelse(v < 18, "Moderate","Severe")))
+  return(value)
+}
+
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -1679,23 +1686,20 @@ for (id in (unique(commonIDs))){
   # If all_values contains any values, then proceed
   if(length(!is.na(all_values))>0 & !is.na(idPositive)) {
     if (readingwanted == 0) {
-    # Determine the lowest value
-    lowest = suppressWarnings(min(all_values,na.rm=TRUE))
     # Determine the highest value
     highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
-    value = if_else((lowest < 0.78 | highest > 3.53),"Abnormal","Normal")
+    
+    value = NLR_comparator(highest)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
     # assign "Abnormal" if outside clinical range, else "Normal"
-    value = if_else((first < 0.78 | first> 3.53),"Abnormal","Normal")
+    value = NLR_comparator(first)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      value = if_else((average < 0.78 | average > 3.53),"Abnormal","Normal")
+    average = mean(all_values)
+    value = NLR_comparator(average)
     }
     # Add this 
     FBCNLR2 <- FBCNLR2 %>% add_row(ID=id,NLR_val=value)
@@ -1752,6 +1756,14 @@ ClotAPTT2 <- data.frame(ID=character(),
 
 commonIDs <- intersect(total$ID,ClotAPTT$ID)
 
+APTT_comparator <- function(v){
+  value = 
+  ifelse(v < 33, "Normal",
+  ifelse(v < 49.5, "Mild",
+  ifelse(v < 82.5, "Moderate","Severe")))
+  return(value)
+}
+
 
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
@@ -1765,27 +1777,24 @@ for (id in (unique(commonIDs))){
   # If all_values contains any values, then proceed
   if(length(!is.na(all_values))>0 & !is.na(idPositive)) {
     if (readingwanted == 0) {
-    # Determine the lowest value
+    # Determine the highest value
     highest = suppressWarnings(max(all_values,na.rm=TRUE))
-    # Compare the lowest and highest values against the range, evaluate to true if
-    # either are outside the range, and assign "Abnormal", else "Normal"
-    value = if_else((highest >= 33),"Abnormal","Normal")
+    value = APTT_comparator(highest)
     }
     if (readingwanted == 1) {
     # select earliest test value in the list
     first <- all_values[1]
     # assign "Abnormal" if outside clinical range, else "Normal"
-    value = if_else((first >= 33),"Abnormal","Normal")
+    value = APTT_comparator(first)
     }
     if (readingwanted == 2) {
-      average = mean(all_values)
-      value = if_else((average >= 33),"Abnormal","Normal")
-    }
+    average = mean(all_values)
+    value = APTT_comparator(average)
     # Add this 
-    ClotAPTT2 <- ClotAPTT2 %>% add_row(ID=id,APTT_val=value)
+    }
+  ClotAPTT2 <- ClotAPTT2 %>% add_row(ID=id,APTT_val=value)
   }
 }
-
 ClotAPTT <- ClotAPTT2
 rm(ClotAPTT2)
 ```
