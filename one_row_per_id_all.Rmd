@@ -37,13 +37,20 @@ library(data.table)
 # being overwritten, but the option to turn this off and run this script without
 # first running MasterAnalysis.R is available by setting MasterAnalysisOn==0 and then
 # manually selecting the dateRange and readingwanted variables.
-MasterAnalysisOn <- 0
+MasterAnalysisOn <- 1
 if (MasterAnalysisOn==0) {
 dateRange <- 5 # 1, 3 or 5 days
 readingwanted <- 1 # 0-worst, 1-first, 2-mean
 }
 ```
 
+```{r}
+setwd("C:/Users/gq19765/OneDrive - University of Bristol/Documents/ICU PhD/LABMARCS/NewData")
+
+print(paste0("Date range: ", dateRange))
+print(paste0("Reading wanted: ", readingwanted))
+
+```
 
 # Load in data files
 ## Outcome data
@@ -271,10 +278,10 @@ total <- left_join(total,CovidCT)
 
 ```{r}
 duplicates <- setDT(totalOutcomes)[, .N, ID]
-for (i in (1:10)){
-  print(i)
-  print(nrow(duplicates[N==i]))
-}
+#for (i in (1:10)){
+#  print(i)
+#  print(nrow(duplicates[N==i]))
+#}
 
 total <- merge(total,duplicates, by="ID")
 
@@ -2410,9 +2417,6 @@ AvonCap = AvonCap %>%
         HIV_positive = HIV.status..choice.HIV.,
         AIDS = HIV.status..choice.AIDS.,
         Solid_organ_cancer_malignancy = Solid.Organ.Cancer.Malignancy.Initially.treated.in.the.last.5.years.exclude.non.melanomatous.skin.cancers.and.in.situ.cervical.carcinoma,
-        Haematological_malignancy_leukaemia_none = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.None.,
-        Leukaemia = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.Leukaemia.,
-        Lymphoma = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.Lymphoma.,
         Organ_transplantation = Organ.Transplantation,
         Pregnancy_post_partum = Pregnancy.Post.partum,
         Gastric_Duodenal_Ulcer_disease = Gastric.Duodenal.Ulcer.Disease.Patients.who.have.required.treatment.for.PUD.nbsp.,
@@ -2556,36 +2560,45 @@ totalBinary$OnAdmission <- with(totalBinary, ifelse(positiveDate-admissionDate >
 
 ```{r}
 if (dateRange==1) {
-    if (readingwanted==0) {
-write.csv(x=totalBinary, file="totalBinary1worst.csv")
+  if (readingwanted==0) {
+    print("1 worst saved")
+    write.csv(x=totalBinary, file="totalBinary1worst.csv")
   }
-    if (readingwanted==1) {
-write.csv(x=totalBinary, file="totalBinary1first.csv")
+  if (readingwanted==1) {
+    print("1 first saved")
+    write.csv(x=totalBinary, file="totalBinary1first.csv")
   }
-    if (readingwanted==2) {
-write.csv(x=totalBinary, file="totalBinary1mean.csv")
+  if (readingwanted==2) {
+    print("1 mean saved")
+    write.csv(x=totalBinary, file="totalBinary1mean.csv")
   }
 }
 if (dateRange==3) {
- if (readingwanted==0) {
-write.csv(x=totalBinary, file="totalBinary3worst.csv")
+  if (readingwanted==0) {
+    print("3 worst saved")
+    write.csv(x=totalBinary, file="totalBinary3worst.csv")
   }
-    if (readingwanted==1) {
-write.csv(x=totalBinary, file="totalBinary3first.csv")
+  if (readingwanted==1) {
+    print("3 first saved")
+    write.csv(x=totalBinary, file="totalBinary3first.csv")
   }
-    if (readingwanted==2) {
-write.csv(x=totalBinary, file="totalBinary3mean.csv")
+  if (readingwanted==2) {
+    print("3 mean saved")
+    write.csv(x=totalBinary, file="totalBinary3mean.csv")
   }
 }
 if (dateRange==5) {
- if (readingwanted==0) {
-write.csv(x=totalBinary, file="totalBinary5worst.csv")
+  if (readingwanted==0) {
+    print("5 worst saved")
+    write.csv(x=totalBinary, file="totalBinary5worst.csv")
   }
-    if (readingwanted==1) {
-write.csv(x=totalBinary, file="totalBinary5first.csv")
+  if (readingwanted==1) {
+    print("5 first saved")
+    write.csv(x=totalBinary, file="totalBinary5first.csv")
   }
-    if (readingwanted==2) {
-write.csv(x=totalBinary, file="totalBinary5mean.csv")
+  if (readingwanted==2) {
+    print("5 mean saved")
+    write.csv(x=totalBinary, file="totalBinary5mean.csv")
   }
 }
 ```
