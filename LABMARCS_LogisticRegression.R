@@ -59,10 +59,10 @@ n_models <- repeats*outsidefolds
 # readingwanted variables.
 
 if (!exists("BatchAnalysisOn")) {
-    dateRange <- 1 # 1, 3 or 5 days
+    dateRange <- 7 # 1, 3, 5, 7,14days
     readingwanted <- 0 # 0-worst, 1-first, 2-mean
     # outcomeselection (1) all severe outcomes (2) ICU admission (3) death
-    outcomeselection <- 2
+    outcomeselection <- 3
     BatchAnalysisOn <- 0
   }
 

@@ -26,7 +26,7 @@ output_path <- paste(work_path, 'output/', sep = '')
 # PART 1: Data Preparation
 #Data prep only needs to be run once (assuming no changes have been made) and
 #can then be turned off if you wish to focus on stats output
-if (1) {
+if (0) {
 # Loop through the data preparation operations
   for (day_idx in c(1,3,5,7,14)) {
     for (reading_idx in c(0,1,2)) {
@@ -40,9 +40,16 @@ if (1) {
 
 
 #PART 2: Data Analysis
-# Set to 1 if stats analyses, graphs are wanted, else only will do data prep
-#above
-if (0) {
+# Set to 1 if stats analyses, graphs are wanted, else only will do data prep above
+
+# Cross Validation Parameters
+# Set number of outer fold repeats, outer folds and inner folds
+repeats <- 25 #1000KCH How many times should we shuffle the data
+outsidefolds <- 2 #10KCH How many splits of the shuffled data (5=20%)
+# can't go lower as small test sets may only have example of one class
+insidefolds <- 5 #10KCH (only relevant for LASSO)
+
+if (1) {
   
   #create tibble for univariate results across batch
   univar_batch_result_tb <- tibble(
@@ -76,7 +83,7 @@ if (0) {
   # options specified
   # Start by lopping through the data preparation operations
   
-  for (day_idx in c(1,3,5)) {
+  for (day_idx in c(1,3,5,7,14)) {
     for (reading_idx in c(0,1,2)) {
       for (outcome_idx in c(2,3) ) {      
         dateRange <- day_idx # 1, 3 or 5 days
