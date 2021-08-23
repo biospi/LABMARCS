@@ -25,9 +25,9 @@ All neccessary libraries are given within the code and should be available and s
 
 The four main parts of the code include:
 
-**one_row_per_id_all**: Performs preparation of the raw clinical data into a format which can be used more readily by regression analysis (which requires for our purposes one row per individual patient). This includes importing data for individual tests from .csv files generated from the hospital EPRs. This script then cleans this data, extracts test results related to each individual patient of interest and compresses each individual test result type into one measurement (if multiple measurements are provided). Where appropriate, test results are also assigned as 'Normal/Abnormal' according to clinical reference guidelines. (More information about the individual test results are given in the table below). Other data extracted alongside test results are patient gender, age and for a subset of the patients we can extract co-morbidity data. Once done processing, this script saves the data into a .csv file which can be used for analysis by 'LogisticLABMARCSall.R' and 'CoxLABMARCSall.R'.
+**LABMARCS_DataPreparation.R**: Performs preparation of the raw clinical data into a format which can be used more readily by regression analysis (which requires for our purposes one row per individual patient). This includes importing data for individual tests from .csv files generated from the hospital EPRs. This script then cleans this data, extracts test results related to each individual patient of interest and compresses each individual test result type into one measurement (if multiple measurements are provided). Where appropriate, test results are also assigned as 'Normal/Abnormal' according to clinical reference guidelines. (More information about the individual test results are given in the table below). Other data extracted alongside test results are patient gender, age and for a subset of the patients we can extract co-morbidity data. Once done processing, this script saves the data into a .csv file which can be used for analysis by 'LABMARCS_LogisticRegression.R' and 'LABMARCS_CoxRegression.R'.
 
-**LogisticLABMARCSall**: This script uses the output from 'one_row_per_id_all.Rmd'.
+**LABMARCS_LogisticRegression.R**: This script uses the output from 'LABMARCS_DataPreparation.R'.
 
 Firstly, this script processes the data further. The data fields are trimmed to be suitable for a logistic regession (only including the desired outcome and co-variates). Co-variate distributions and correlation are examined. Continuous co-variates are transformed to be approximately normally distributed and regularised (mean set to 0, standard deviation set to 1). Co-variates with >70% missing data are dropped, data is windsorised at 1st and 99th percentile. Missing data is imputed using either k-nearest neighbour or MICE (set as an additional option).
 
@@ -45,8 +45,8 @@ Fourthly, this script runs a full stability analysis on the LASSO model runs. Th
 *'Variable selection - A review and recommendations for the practicing statistician'*
 George Heinz. Located: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5969114/
 
-
-**CoxLABMARCSall**: This script uses the output from 'one_row_per_id_all.Rmd'.
+[IN PROGRESS IGNORE COX]
+**LABMARCS_Cox.R**: This script uses the output from 'one_row_per_id_all.Rmd'.
 
 NOTE: This script runs very similarly to LogisticLABMARCS.R and so only additional information is given below to highlight the differences:
 
@@ -64,7 +64,7 @@ Fourthly, this script runs a full stability analysis however the cox model works
 *'Variable selection - A review and recommendations for the practicing statistician'*
 George Heinz. Located: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5969114/
 
-**MasterAnalysis**: Furthermore, we include this top level file which runs through all the other three scripts sequentially (and runs each multiple times considering all combinations of the important optional parameters). This is useful to consider all key variations of the model (as described below) without needing to manually change the options within the script and rerun:
+**LABMARCS_Analysis_Batch.R**: Furthermore, we include this top level file which runs through all the other three scripts sequentially (and runs each multiple times considering all combinations of the important optional parameters). This is useful to consider all key variations of the model (as described below) without needing to manually change the options within the script and rerun:
 
 *dateRange*
 Which tests to consider when we compress from the clinical data. The options are all tests taken on the same day, plus (1),(3) or (5) days after a positive COVID-19 test. 
@@ -109,37 +109,7 @@ Now set readingwanted to 0, 1 or 2. This represents:
 (1) The first test value available after the COVID-19 positive test, but limited to the cut-off specified by dateRange
 (2) The mean value of all the test results availble in the window specified by dateRange
 
-The values you enter for these two parameters will determine the name of the output .csv file generated. These are listed below as determined in the code:
-
-```{r}
-if (dateRange==1 & readingwanted==0) {
-write.csv(x=totalBinary, file="totalBinary1worst.csv")
-  }
-if (dateRange==1 & readingwanted==1) {
-write.csv(x=totalBinary, file="totalBinary1first.csv")
-  }
-if (dateRange==1 & readingwanted==2) {
-write.csv(x=totalBinary, file="totalBinary1mean.csv")
-  }
-if (dateRange==3 & readingwanted==0) {
-write.csv(x=totalBinary, file="totalBinary3worst.csv")
-  }
-if (dateRange==3 & readingwanted==1) {
-write.csv(x=totalBinary, file="totalBinary3first.csv")
-  }
-if (dateRange==3 & readingwanted==2) {
-write.csv(x=totalBinary, file="totalBinary3mean.csv")
-  }
-if (dateRange==5 & readingwanted==0) {
-write.csv(x=totalBinary, file="totalBinary5worst.csv")
-  }
-if (dateRange==5 & readingwanted==1) {
-write.csv(x=totalBinary, file="totalBinary5first.csv")
-  }
-if (dateRange==5 & readingwanted==2) {
-write.csv(x=totalBinary, file="totalBinary5mean.csv")
-  }
-```
+The values you enter for these two parameters will determine the name of the output .csv file generated. 
 
 Step 2: Run the processing code 'LogisticLABMARCS.R' making sure to first examine the section of code below:
 
