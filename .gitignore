@@ -5,3 +5,5 @@
 *.pdf
 *.xls
 *.xlsx
+*.Rhistory
+*.rkward_autosave
