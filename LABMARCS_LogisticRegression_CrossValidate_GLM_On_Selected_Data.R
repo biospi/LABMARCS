@@ -10,8 +10,12 @@ model_desc_str = paste(cv_desc,mnum,'_R',as.character(repeats),'_OF',
 lambda.store <- vector("numeric", length = n_models)
 auc <- vector("numeric", length = n_models)
 brier <- vector("numeric", length = n_models)
+sensitivity_store <- vector(mode = "numeric", length = n_models)
+specificity_store <- vector(mode = "numeric", length = n_models)
+rocposcases <- vector(mode = "numeric", length = n_models)
 includedvars <- list(length = n_models)
 roccurve <- vector(mode = "list", length = n_models)
+
 
 #Technically the dimension should be columns -1 since we don't include outcome
 #in predictions, but intercept is added in list of coefficients
@@ -62,16 +66,18 @@ for (j in 1:repeats) {
   for (i in 1:outsidefolds) {
     #print(paste('outsidefolds:',i))
     
-    #Segment data by fold using the which() function 
+    #Segment data by fold using the which() function
+    #this selects a portion of data as function of number of outerfolds, e.g.
+    #4 outer folds means 1/4 or 25% of data is used for test, 75% for train
     testIndexes <- which(data.outerfolds == i,arr.ind = TRUE)
     #cross validation only on train data for outerfolds
-    of_crossval.test.data <- crossval.train.data[testIndexes, ]
+    of_crossval.train.data <- crossval.train.data[-testIndexes, ]
     
     if(generalise_flag){
-      #test CV on dataset to generalise to
-      of_crossval.train.data <- crossval.test.data
+      #test CV on dataset to generalise to (assigned in LABMARCS_LogisticRegression.m)
+      of_crossval.test.data <- crossval.test.data
     } else{ #test on the portion left out for CV
-      of_crossval.train.data <- crossval.train.data[-testIndexes, ]  
+      of_crossval.test.data <- crossval.train.data[testIndexes, ]  
     }
     
     StatModel <- glm(outcome ~.,data = of_crossval.train.data, family = "binomial")
@@ -97,12 +103,13 @@ for (j in 1:repeats) {
     tryCatch(tab[1,2] <- conf_matrix_of[1,'TRUE'], error = function(e) {tab[1,2] <- 0 } )
     tryCatch(tab[2,2] <- conf_matrix_of[2,'TRUE'], error = function(e) {tab[2,2] <- 0 } )
     
-    out_sen <- as.numeric(sensitivity(tab)['.estimate'])
-    out_spec <- as.numeric(specificity(tab)['.estimate'])
+    sensitivity_store[outsidefolds*(j - 1) + i] <- as.numeric(sensitivity(tab)['.estimate'])
+    specificity_store[outsidefolds*(j - 1) + i] <- as.numeric(specificity(tab)['.estimate'])
     
-    # Plot ROC curve
+    # save ROC curve
     roccurve[[outsidefolds*(j - 1) + i]] <- roc(outcome ~ c(probabilities_of), 
                                                 data = of_crossval.test.data)
+    rocposcases[[outsidefolds*(j - 1) + i]] <- sum(of_crossval.test.data['outcome'])
     #plot.roc(roccurve[[1]])
     
     auc[outsidefolds*(j - 1) + i] <- auc(roccurve[[outsidefolds*(j - 1) + i]])
@@ -136,9 +143,9 @@ for (j in 1:repeats) {
       print('Model Accuracy')
       print(out_acc)
       print('Sensitivity')
-      print(out_sen)
+      print(sensitivity_store[outsidefolds*(j - 1) + i])
       print('Specificity')
-      print(out_spec)
+      print(specificity_store[outsidefolds*(j - 1) + i])
       print('Brier score against test data (fold holdout)')
       print(brier[outsidefolds*(j - 1) + i])
       print('Brier Score against Train Data')
@@ -151,17 +158,19 @@ for (j in 1:repeats) {
 auc_quantile <- as.numeric(quantile(auc, c(.025, .50, .975)))
 brier_quantile <- as.numeric(quantile(brier, c(.025, .50, .975)))
 lambda.store_quantile <- as.numeric(quantile(lambda.store, c(.025, .50, .975)))
-  
+sensitivity_quantile <- as.numeric(quantile(sensitivity_store, c(.025, .50, .975)))
+specificity_quantile <- as.numeric(quantile(specificity_store, c(.025, .50, .975)))
+
 sink(paste(save_path, 'Model_CV_', mnum, '_', model_desc_str, 'summary.txt',sep = '')) 
 print("Mean AUC")
 print(mean(auc))
 print('Quantile')
-
 print(auc_quantile)
 print('t-test AUC')
 print(t.test(auc))
 print('t-test CIs')
 print(t.test(auc)$"conf.int")
+
 print('Mean Brier')
 mean(brier)
 print('Quantile Brier')
@@ -170,6 +179,7 @@ print('t-test Brier Score')
 t.test(brier)
 print('t-test Brier CIs')
 t.test(brier)$"conf.int"
+
 print('Mean Lambda Score')
 mean(lambda.store)
 print('Quantile Lambda Score')
@@ -196,7 +206,7 @@ hist(lambda.store,plot = TRUE)
 dev.off()
   
 # plot the ROC curves for all models to show uncertainty
-ggroc(roccurve, legacy.axes = T) +
+myPlot <- ggroc(roccurve, legacy.axes = T) +
   geom_abline(slope = 1 ,intercept = 0) + # add identity line
   theme(
     panel.background = element_blank(),
@@ -206,16 +216,32 @@ ggroc(roccurve, legacy.axes = T) +
     panel.border = element_rect(size = 2, fill = NA), 
     axis.text.x = element_text(size = 14, face = 'bold'),
     axis.text.y = element_text(size = 14, face = 'bold')) +
-  xlab('1 - Specificity (FP)') +
-  ylab('Sensitivity (TP)') +
+  xlab(paste('[Reading:', readingwanted_str, ']  1 - Specificity (FP)' ,sep = '')) +
+  ylab(paste('[Day: ', dateRange, ']  Sensitivity (TP)',sep = '')) +
   scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
-  scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25))
-  
+  scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) +
+  geom_text(x = 0.1, y = 1, colour = "black", size = 6,
+            label = paste('Median AUC: ', sprintf("%0.2f",median(auc)), sep = '') ) +
+  geom_text(x = 0.11, y = 0.95, colour = "black", size = 5,
+          label = paste('Min/Max/Med: ', sprintf("%d,%d,%0.1f",
+                                                          min(rocposcases),
+                                                          max(rocposcases),
+                                                          median(rocposcases)), 
+                        sep = '') )
+
+myPlot
+
 ggsave(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str, 'ROCs_for_',
              as.character(n_models), '_models.pdf',sep = ''), device = 'pdf',
        width = 20, height = 20, units = 'cm', dpi = 300)
   
-  
+#this seems to be a hack but we ultimately want to make a subplot with all of the CV results
+#across parameters. R does allow subplots but the style is a bit confusing (at least for me atm) 
+#if you don't have all of the data ready.
+#It's easier to save individually named subplots and then assemble manually - 
+#There must be a better way to do this - revisit
+assign( paste('roc_cv_p_', p_str, '_', dateRange, '_',outcomeselection, 
+              '_',readingwanted,sep = ''), myPlot)
   
 #---------------------------
 # Stability analysis-using data gathered from above nested folding

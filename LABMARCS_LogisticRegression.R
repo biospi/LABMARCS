@@ -43,13 +43,7 @@ if (ImputationAllowed == 0) {
 # Loses 50% of data but appears to be a better model
 Comorbidities <- 0
   
-# Cross Validation Parameters
-# Set number of outer fold repeats, outer folds and inner folds
-repeats <- 250 #1000KCH How many times should we shuffle the data
-outsidefolds <- 4 #10KCH How many splits of the shuffled data (5=20%)
-# can't go lower as small test sets may only have example of one class
-insidefolds <- 5 #10KCH (only relevant for LASSO)
-n_models <- repeats*outsidefolds
+
 
 
 # BatchAnalysisOn==1 prevents the dateRange and readingwanted variables from
@@ -64,7 +58,16 @@ if (!exists("BatchAnalysisOn")) {
     # outcomeselection (1) all severe outcomes (2) ICU admission (3) death
     outcomeselection <- 3
     BatchAnalysisOn <- 0
-  }
+    
+    # Cross Validation Parameters
+    # Set number of outer fold repeats, outer folds and inner folds
+    repeats <- 25 #1000KCH How many times should we shuffle the data
+    outsidefolds <- 2 #10KCH How many splits of the shuffled data (5=20%)
+    # can't go lower as small test sets may only have example of one class
+    insidefolds <- 5 #10KCH (only relevant for LASSO)
+}
+
+n_models <- repeats*outsidefolds
 
 if (outcomeselection == 1) {
   outcome_str = 'AllSevere'
@@ -100,6 +103,7 @@ if (InstallPackages == 1) {
   install.packages("tibble")
   install.packages("mbest")
   install.packages("nestfs")
+  install.packages("patchwork")
 }
 
 if (LoadLibraries == 1) {
@@ -123,6 +127,7 @@ if (LoadLibraries == 1) {
   library("md")
   library('fastDummies')
   library('data.table')
+  library('patchwork')
 }
   
 # DATA PROCESSING ------------------------------------------------------
@@ -399,15 +404,17 @@ if (!BatchAnalysisOn) {
 }
 
 #----------------------------------------------------------------------
-# RUN SIMPLE PRELIMINARY MODELS ON ORIGINAL DATA COLUMNS WITH NO IMPUTATION
+# RUN SET OF GLM MODELS WITH NO CROSS VALIDATION
 if (1) {
   #Run univariate tests to get an idea of each variables prediction power
+  print('Run Univariate tests...')
   source(paste(work_path,'LABMARCS_LogisticRegression_Run_Univariate_Tests.R', sep = ''))
 
   #Run a GLM on all data - our benchmark for best performance
   SelectedData <- fulldata
   SelectedDataOutcome <- fulldata
   SelectedData_str <- paste('TrainFullData_TestFullData_N', as.character(dim(SelectedData)[1]) , sep = '')
+  print('Run GLM with full data test/train...')
   source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
   
   #save things to our summary data table
@@ -421,6 +428,7 @@ if (1) {
   SelectedData <- train.data
   SelectedDataOutcome <- train.data
   SelectedData_str <- paste('Train_TrainData_Test_TrainData_N', as.character(dim(SelectedData)[1]) , sep = '')
+  print('Run GLM only on train data for test/train...')
   source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
   
   #save things to our summary data table
@@ -433,6 +441,7 @@ if (1) {
   SelectedData <- train.data
   SelectedDataOutcome <- test.data
   SelectedData_str <- paste('Train_TrainData_Test_TestData_N', as.character(dim(SelectedData)[1]) , sep = '')
+  print('Run GLM, train on UHB/NBT, test on Weston...')
   source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
   
   #save things to our summary data table
@@ -451,7 +460,10 @@ if (1) {
     cv_batch_df1 <- data.frame(ModelType = NA, Reading = NA, Day = NA, Outcome = NA,
                     MeanAUC = NA,  AUC_Q2_5 = NA, AUC_Q50 = NA, AUC_Q97_5 = NA, 
                     MeanBrier =  NA, Brier_Q2_5 = NA, Brier_Q50 = NA, Brier_Q97_5 = NA, 
-                    MeanLambda =  NA, Lambda_Q2_5 = NA, Lambda_Q50 = NA, Lambda_Q97_5 = NA)
+                    MeanLambda =  NA, Lambda_Q2_5 = NA, Lambda_Q50 = NA, Lambda_Q97_5 = NA,
+                    MeanSensitivity =  NA, Sensitivity_Q2_5 = NA, Sensitivity_Q50 = NA, Sensitivity_Q97_5 = NA,
+                    MeanSpecificity =  NA, Specificity_Q2_5 = NA, Specificity_Q50 = NA, Specificity_Q97_5 = NA)
+    
     cv_batch_df2 <- cv_batch_df1 
   }
 
@@ -459,14 +471,17 @@ if (1) {
   crossval.train.data <- train.data
   generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified  
   cv_desc = 'Train_CVTrainData_Test_CVTestData_'
+  p_str <- 'T' #(T)rain, text prefix for roc curve compendium variables
+  print('Run GLM with CrossVal Train only UHB/NBT 80/20 split...')
   source('LABMARCS_LogisticRegression_CrossValidate_GLM_On_Selected_Data.R')
-  
   #save things to our summary data table
   cv_batch_df1[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
                            mean(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
                            mean(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
                            mean(lambda.store), lambda.store_quantile[1],
-                           lambda.store_quantile[2],lambda.store_quantile[3])
+                           lambda.store_quantile[2],lambda.store_quantile[3],
+                           mean(sensitivity_store),sensitivity_quantile[1],sensitivity_quantile[2],sensitivity_quantile[3], #place holder for spec)   
+                           mean(specificity_store),specificity_quantile[1],specificity_quantile[2],specificity_quantile[3]) #place holder for sens
   
   write.table(cv_batch_df1, file = paste(output_path, model_desc_str, 'Summary_Table.csv',sep = ''),
               row.names = FALSE, sep = ',')
@@ -477,15 +492,18 @@ if (1) {
   crossval.test.data <- test.data
   generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified  
   cv_desc = 'Train_CVTrainData_Test_GeneraliseTestData_'
+  p_str <- 'G' #(G)eneralise
+  print('Run GLM with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
   source('LABMARCS_LogisticRegression_CrossValidate_GLM_On_Selected_Data.R')
-
   #save things to our summary data table
   cv_batch_df2[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
                             mean(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
                             mean(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
                             mean(lambda.store), lambda.store_quantile[1],
-                            lambda.store_quantile[2],lambda.store_quantile[3])
-  
+                            lambda.store_quantile[2],lambda.store_quantile[3],
+                            mean(sensitivity_store),sensitivity_quantile[1],sensitivity_quantile[2],sensitivity_quantile[3], #place holder for spec)   
+                            mean(specificity_store),specificity_quantile[1],specificity_quantile[2],specificity_quantile[3]) #place holder for sens
+
   write.table(cv_batch_df2, file = paste(output_path, model_desc_str, 'Summary_Table.csv',sep = ''),
               row.names = FALSE, sep = ',')
   

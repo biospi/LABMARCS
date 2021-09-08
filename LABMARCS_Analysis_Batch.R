@@ -44,8 +44,8 @@ if (0) {
 
 # Cross Validation Parameters
 # Set number of outer fold repeats, outer folds and inner folds
-repeats <- 25 #1000KCH How many times should we shuffle the data
-outsidefolds <- 2 #10KCH How many splits of the shuffled data (5=20%)
+repeats <- 20 #1000KCH How many times should we shuffle the data
+outsidefolds <- 5 #10KCH How many splits of the shuffled data (5=20%)
 # can't go lower as small test sets may only have example of one class
 insidefolds <- 5 #10KCH (only relevant for LASSO)
 
@@ -76,7 +76,10 @@ if (1) {
   cv_batch_df1 <- data.frame(ModelType = NA, Reading = NA, Day = NA, Outcome = NA,
                              MeanAUC = NA,  AUC_Q2_5 = NA, AUC_Q50 = NA, AUC_Q97_5 = NA, 
                              MeanBrier =  NA, Brier_Q2_5 = NA, Brier_Q50 = NA, Brier_Q97_5 = NA, 
-                             MeanLambda =  NA, Lambda_Q2_5 = NA, Lambda_Q50 = NA, Lambda_Q97_5 = NA)
+                             MeanLambda =  NA, Lambda_Q2_5 = NA, Lambda_Q50 = NA, Lambda_Q97_5 = NA,
+                             MeanSensitivity =  NA, Sensitivity_Q2_5 = NA, Sensitivity_Q50 = NA, Sensitivity_Q97_5 = NA,
+                             MeanSpecificity =  NA, Specificity_Q2_5 = NA, Specificity_Q50 = NA, Specificity_Q97_5 = NA)
+
   cv_batch_df2 <- cv_batch_df1 
   
   # Now loop through the logistic regression models with different
@@ -96,5 +99,69 @@ if (1) {
       }
     }
   }
+
+  #plotting text 
+  str_p <- paste('_R',as.character(repeats),'_OF', as.character(outsidefolds), '_IF', 
+                 as.character(insidefolds), '_', sep = '')
+  
+  #ICU  
+  #create compendium roc curve plot for train conditions, each row is day, col is reading type
+  roc_cv_p_T_1_2_0 + roc_cv_p_T_1_2_1 + roc_cv_p_T_1_2_2 + 
+    roc_cv_p_T_3_2_0 + roc_cv_p_T_3_2_1 + roc_cv_p_T_3_2_2 + 
+    roc_cv_p_T_5_2_0 + roc_cv_p_T_5_2_1 + roc_cv_p_T_5_2_2 + 
+    roc_cv_p_T_7_2_0 + roc_cv_p_T_7_2_1 + roc_cv_p_T_7_2_2 + 
+    roc_cv_p_T_14_2_0 + roc_cv_p_T_14_2_1 + roc_cv_p_T_14_2_2 +
+    plot_layout(ncol = 3) + plot_annotation(title = 'ICU: Train',
+                                            theme = theme(plot.title = element_text(size = 26)))
+  
+  ggsave(paste(output_path, 'ROC_Compendium_ICU_CV_Train_', str_p, '_', 'ROCs_for_N',
+               as.character(n_models), '_models.pdf',sep = ''), device = 'pdf',
+         width = 60, height = 100, units = 'cm', dpi = 300)
+  
+  #create compendium roc curve plot for generalise conditions
+  roc_cv_p_G_1_2_0 + roc_cv_p_G_1_2_1 + roc_cv_p_G_1_2_2 + 
+    roc_cv_p_G_3_2_0 + roc_cv_p_G_3_2_1 + roc_cv_p_G_3_2_2 + 
+    roc_cv_p_G_5_2_0 + roc_cv_p_G_5_2_1 + roc_cv_p_G_5_2_2 + 
+    roc_cv_p_G_7_2_0 + roc_cv_p_G_7_2_1 + roc_cv_p_G_7_2_2 + 
+    roc_cv_p_G_14_2_0 + roc_cv_p_G_14_2_1 + roc_cv_p_G_14_2_2 + 
+    plot_layout(ncol = 3) + plot_annotation(title = 'ICU: Generalise',
+                                            theme = theme(plot.title = element_text(size = 26)))
+  
+  
+  ggsave(paste(output_path, 'ROC_Compendium_ICU_CV_Generalise_', str_p, '_', 'ROCs_for_N',
+               as.character(n_models), '_models.pdf',sep = ''), device = 'pdf',
+         width = 60, height = 100, units = 'cm', dpi = 300)
+  
+  #DEATH
+  #create compendium roc curve plot for train conditions, each row is day, col is reading type
+  roc_cv_p_T_1_3_0 + roc_cv_p_T_1_3_1 + roc_cv_p_T_1_3_2 + 
+    roc_cv_p_T_3_3_0 + roc_cv_p_T_3_3_1 + roc_cv_p_T_3_3_2 + 
+    roc_cv_p_T_5_3_0 + roc_cv_p_T_5_3_1 + roc_cv_p_T_5_3_2 + 
+    roc_cv_p_T_7_3_0 + roc_cv_p_T_7_3_1 + roc_cv_p_T_7_3_2 + 
+    roc_cv_p_T_14_3_0 + roc_cv_p_T_14_3_1 + roc_cv_p_T_14_3_2 +
+    plot_layout(ncol = 3) + plot_annotation(title = 'Death: Train',
+                                            theme = theme(plot.title = element_text(size = 26)))
+  
+  
+  str_p <- paste('_R',as.character(repeats),'_OF', as.character(outsidefolds), '_IF', 
+                 as.character(insidefolds), '_', sep = '')
+  ggsave(paste(output_path, 'ROC_Compendium_DEATH_CV_Train_', str_p, '_', 'ROCs_for_N',
+               as.character(n_models), '_models.pdf',sep = ''), device = 'pdf',
+         width = 60, height = 100, units = 'cm', dpi = 300)
+  
+  #create compendium roc curve plot for generalise conditions
+  roc_cv_p_G_1_3_0 + roc_cv_p_G_1_3_1 + roc_cv_p_G_1_3_2 + 
+    roc_cv_p_G_3_3_0 + roc_cv_p_G_3_3_1 + roc_cv_p_G_3_3_2 + 
+    roc_cv_p_G_5_3_0 + roc_cv_p_G_5_3_1 + roc_cv_p_G_5_3_2 + 
+    roc_cv_p_G_7_3_0 + roc_cv_p_G_7_3_1 + roc_cv_p_G_7_3_2 + 
+    roc_cv_p_G_14_3_0 + roc_cv_p_G_14_3_1 + roc_cv_p_G_14_3_2 +
+    plot_layout(ncol = 3) + plot_annotation(title = 'Death: Generalise', 
+                                            theme = theme(plot.title = element_text(size = 26)))
+  
+  
+  ggsave(paste(output_path, 'ROC_Compendium_DEATH_CV_Generalise_', str_p, '_', 'ROCs_for_N',
+               as.character(n_models), '_models.pdf',sep = ''), device = 'pdf',
+         width = 60, height = 100, units = 'cm', dpi = 300)
   
 }
+
