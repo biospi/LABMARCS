@@ -26,7 +26,7 @@ output_path <- paste(work_path, 'output/', sep = '')
 # PART 1: Data Preparation
 #Data prep only needs to be run once (assuming no changes have been made) and
 #can then be turned off if you wish to focus on stats output
-if (0) {
+if (1) {
 # Loop through the data preparation operations
   for (day_idx in c(1,3,5,7,14)) {
     for (reading_idx in c(0,1,2)) {
