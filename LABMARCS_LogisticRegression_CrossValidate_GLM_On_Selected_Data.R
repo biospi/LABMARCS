@@ -16,6 +16,10 @@ rocposcases <- vector(mode = "numeric", length = n_models)
 includedvars <- list(length = n_models)
 roccurve <- vector(mode = "list", length = n_models)
 
+#initiate stat model list data structure (don't need to reset when test generalisation)
+if(!generalise_flag) {
+  StatModel_ls <- vector(mode = "list", length = n_models)
+}
 
 #Technically the dimension should be columns -1 since we don't include outcome
 #in predictions, but intercept is added in list of coefficients
@@ -73,14 +77,22 @@ for (j in 1:repeats) {
     #cross validation only on train data for outerfolds
     of_crossval.train.data <- crossval.train.data[-testIndexes, ]
     
+    #note the generalise data must be run after the initial models have been setup
+    #else the StatModel_ls will be empty and generalisaton will cause an error
     if(generalise_flag){
       #test CV on dataset to generalise to (assigned in LABMARCS_LogisticRegression.m)
       of_crossval.test.data <- crossval.test.data
+      StatModel <- StatModel_ls[[outsidefolds*(j - 1) + i]]
+      
     } else{ #test on the portion left out for CV
       of_crossval.test.data <- crossval.train.data[testIndexes, ]  
+      StatModel <- glm(outcome ~.,data = of_crossval.train.data, family = "binomial")
+      #save models for test with generalisation set
+      StatModel_ls[[outsidefolds*(j - 1) + i]] <- StatModel
+      
     }
     
-    StatModel <- glm(outcome ~.,data = of_crossval.train.data, family = "binomial")
+    
     probabilities_of <- predict(object = StatModel, of_crossval.test.data, type = "response")
 
     # Test the best predicted lambda on the remaining data in the outer fold

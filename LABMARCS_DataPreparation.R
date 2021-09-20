@@ -31,7 +31,7 @@ if (!exists('data_path')) {
 
 #Set needed variables if we are not running LABMARCS_Analysis_Batch.R
 if (!exists('BatchAnalysisOn')) { 
-  dateRange <- 1 # 1, 3 or 5 days
+  dateRange <- 1 # 1, 3, 5, 7, 14 days
   readingwanted <- 0 # 0-worst, 1-first, 2-mean
 }
 
@@ -74,7 +74,8 @@ NBT_outcomes2 <- dplyr::select(NBT_outcomes,c(ID,admissionDate,dischargeDate,
 
 
 ### UHB Outcomes
-UHB_outcomes1 <- read.csv(file("UHB_outcomes1.csv"))
+UHB_outcomes1 <- read.csv(file("UHB_outcomes1.ICU_Update.csv"))
+
 UHB_outcomes1 = UHB_outcomes1 %>% 
   rename(
     ID = uob_ID,
@@ -85,13 +86,14 @@ UHB_outcomes1$admissionDate = as.Date(UHB_outcomes1$admissionDate, format = "%d/
 UHB_outcomes1$dischargeDate = as.Date(UHB_outcomes1$admissionDate + 
                                         as.integer(UHB_outcomes1$hospital_length_of_stay))
 UHB_outcomes1$deathDate = as.Date(UHB_outcomes1$deathDate, format = "%d/%m/%Y")
-UHB_outcomes1$ITU_Start <- as.Date(NA)
-UHB_outcomes1$ITU_End <- as.Date(NA)
+UHB_outcomes1$ITU_Start <- as.Date(UHB_outcomes1$ITU_Start, format = "%d/%m/%Y")
+UHB_outcomes1$ITU_End <- as.Date(UHB_outcomes1$ITU_End, format = "%d/%m/%Y")
 UHB_outcomes1$Site = "UHB1"
 UHB_outcomes12 = UHB_outcomes1 %>% dplyr::select(ID,admissionDate,dischargeDate,
                                                  ITU_Start,ITU_End,deathDate,Site)
 
-UHB_outcomes2 <- read.csv(file("UHB_outcomes2.csv"))
+UHB_outcomes2 <- read.csv(file("UHB_outcomes2.ICU_Update.csv"))
+
 UHB_outcomes2 = UHB_outcomes2 %>% 
   rename(
     ID = uob_ID,
@@ -107,8 +109,8 @@ UHB_outcomes2_deaths = UHB_outcomes2 %>%
   filter(outcome == 3)
 UHB_outcomes2_deaths$deathDate = UHB_outcomes2_deaths$dischargeDate
 UHB_outcomes2 <- merge(UHB_outcomes2,UHB_outcomes2_deaths,all = TRUE)
-UHB_outcomes2$ITU_Start <- as.Date(NA)
-UHB_outcomes2$ITU_End <- as.Date(NA)
+UHB_outcomes2$ITU_Start <- as.Date(UHB_outcomes2$ITU_Start, format = "%d/%m/%Y")
+UHB_outcomes2$ITU_End <- as.Date(UHB_outcomes2$ITU_End, format = "%d/%m/%Y")
 UHB_outcomes2$Site = "UHB2"
 UHB_outcomes22 = UHB_outcomes2 %>% dplyr::select(ID,admissionDate,dischargeDate,
                                                  ITU_Start,ITU_End,deathDate,Site)
@@ -2052,7 +2054,12 @@ total <- total %>% mutate(coinfection = if_else((viral_coinfection == TRUE | res
 totalBinary <- total
 
 #### Comorbidities
-AvonCap <- as.data.frame(read_csv(file("AvonCap.csv")))
+#AvonCap <- as.data.frame(read_csv(file("AvonCap.csv"))) #recent update keeps giving error:
+# Error in nchar(x, "width") : invalid multibyte string, element 1
+#not clear why as this file has not been edited and opens fine in notepad++
+#using read.csv instead of read_csv gets around
+AvonCap <- tibble(read.csv("AvonCap.Update.csv"))
+
 AvonCap = AvonCap %>% rename(ID = uob_ID)
 AvonCap <- AvonCap[!duplicated(AvonCap$ID),]
 AvonCap <- subset(AvonCap, select = -c(Repeat.Instrument,Repeat.Instance,
@@ -2116,7 +2123,7 @@ AvonCap <- subset(AvonCap, select = c(ID,PSI,
                                       Chronic_Kidney_Disease,Liver_disease,
                                       Diabetes,CVA_Stroke,TIA_mini_stroke,
                                       Immunodeficiency, HIV_positive))
-totalBinary <- merge(total,AvonCap,by=c("ID"),all.x=TRUE)
+totalBinary <- merge(total,AvonCap,by = c("ID"),all.x = TRUE)
 
 # Check values against ranges and create normal/abnormal binary column
 
@@ -2153,6 +2160,6 @@ totalBinary$OnAdmission <- with(totalBinary,
                                        FALSE,TRUE))
 
 
-fn=paste(work_path, 'totalBinary', as.character(dateRange), 
-         readingwanted_str, '.csv', sep ='')
+fn <- paste(work_path, 'totalBinary', as.character(dateRange), 
+         readingwanted_str, '.csv', sep = '')
 write.csv(x = totalBinary, file = fn )

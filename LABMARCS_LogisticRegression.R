@@ -469,6 +469,7 @@ if (1) {
 
   #Do cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
   crossval.train.data <- train.data
+  #don't need to specify crossval.test.data as it will be a % from crossval.train.data
   generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified  
   cv_desc = 'Train_CVTrainData_Test_CVTestData_'
   p_str <- 'T' #(T)rain, text prefix for roc curve compendium variables
