@@ -303,6 +303,68 @@ BE <- BE2
 rm(BE2)
 
 
+#### UREA
+Urea <- read.csv(file("Urea_Export.2021.13.10.csv"))
+Urea$Date.Booked.In = as.Date(Urea$Date.Booked.In, format = "%d/%m/%Y")
+Urea = Urea %>% 
+  rename(
+    date = Date.Booked.In,
+    ID = uob_ID,
+  )
+Urea = Urea %>%
+  rename(
+    Urea_val = Numeric.Result
+  )
+
+Urea = Urea %>% dplyr::select(ID,date,Urea_val)
+Urea <- Urea[complete.cases(Urea),]
+Urea2 <- data.frame(ID = character(), Urea_val = character())
+commonIDs <- intersect(total$ID,Urea$ID)
+
+for (id in (unique(commonIDs))) {
+  # Get all dates for this ID and variable
+  idDates = Urea[Urea$ID == id,]$date
+  # Sort the data by date
+  idDates = sort(idDates, decreasing = FALSE)
+  # Find covid positive test for this ID
+  idPositive = total$positiveDate[total$ID == id]
+  # Get all values for this ID and variable within the daterange from positive date
+  all_values = Urea[Urea$ID == id,][(idDates >= idPositive & idDates < 
+                                   (idPositive + dateRange)),]$Urea_val
+  # If all_values contains any values, then proceed
+  if (length(!is.na(all_values)) > 0 & !is.na(idPositive)) {
+    if (readingwanted == 0) {
+      # Determine the lowest value
+      lowest = suppressWarnings(min(all_values,na.rm = TRUE))
+      # Determine the highest value
+      highest = suppressWarnings(max(all_values,na.rm = TRUE))
+      # Compare the lowest and highest values against the range, evaluate to true
+      # if either are outside the range, and assign "Abnormal", else "Normal"
+      value = if_else((lowest < 2.5 | highest > 7),"Abnormal","Normal") #Philip says above 7.8 but NICE says 7
+    }
+    if (readingwanted == 1) {
+      # select earliest test value in the list
+      first <- all_values[1]
+      # assign "Abnormal" if outside clinical range, else "Normal"
+      value = if_else((first < 2.5 | first > 7),"Abnormal","Normal")
+    }
+    if (readingwanted == 2) {
+      average = mean(all_values)
+      value = if_else((average < 2.5 | average > 7),"Abnormal","Normal")
+    }
+    
+    Urea2 <- Urea2 %>% add_row(ID = id,Urea_val = value)
+  }
+}
+
+Urea <- Urea2
+rm(Urea2)
+
+
+
+
+
+
 #### BNP - B-type natriuretic peptide
 BNP <- read.csv(file("BNP.csv"))
 BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format = "%d/%m/%Y")
@@ -2021,20 +2083,20 @@ Urine = Urine %>%
   )
 
 Urine <- Urine %>% mutate(urine_coinfection = if_else((Organism.Desc != "Negative MSU"),TRUE,FALSE))
-Urine <- Urine %>% dplyr::select(ID,date,urine_coinfection)
+Urine <- Urine %>% dplyr::select(ID, date, urine_coinfection)
 Urine <- Urine[complete.cases(Urine),]
-Urine2 <- data.frame(ID=character(),
-                  urine_coinfection=logical())
-commonIDs <- intersect(total$ID,Vir$ID)
+Urine2 <- data.frame(ID = character(), urine_coinfection = logical())
+commonIDs <- intersect(total$ID, Vir$ID)
 
 for (id in unique(commonIDs)){
     # Return all values for the admission date for this ID
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
-  idDates = Urine[Urine$ID==id,]$date
-  idPositive = total$positiveDate[total$ID==id]
-  presence = TRUE %in% (Urine[Urine$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$urine_coinfection)
-  Urine2 <- Urine2 %>% add_row(ID=id,urine_coinfection=presence)
+  idDates = Urine[Urine$ID == id,]$date
+  idPositive = total$positiveDate[total$ID == id]
+  presence = TRUE %in% (Urine[Urine$ID == id,][(idDates >= idPositive & idDates < 
+                                                (idPositive + dateRange)),]$urine_coinfection)
+  Urine2 <- Urine2 %>% add_row(ID = id, urine_coinfection = presence)
 
 }
 
@@ -2043,7 +2105,9 @@ rm(Urine2)
 
 
 # Merge values with total table by admission date
-variables = list(BE,BNP,CRP,DDM,eGFR,FER,fib,Glucose,HB,HBA1c,LDH,PCT,PLT,trig,trop,FBCLymph,FBCNeutr,FBCWCC,FBCNLR,ClotAPTT,ClotPT,poctLAC,O2,CO2,poctpH,Vir,BC,Resp,Urine)
+variables = list(BE,BNP,CRP,DDM,eGFR,FER,fib,Glucose,HB,HBA1c,LDH,PCT,PLT,trig,
+                 trop,FBCLymph,FBCNeutr,FBCWCC,FBCNLR,ClotAPTT,ClotPT,poctLAC,O2,
+                 CO2,poctpH,Vir,BC,Resp,Urine,Urea)
 
 for (variable in variables) {
   total <- merge(total,variable, all.x = TRUE)
@@ -2144,7 +2208,7 @@ all_columns <- c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val",
                  "PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils",
                  "WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val",
                  "CO2_val","poctpH_val","viral_coinfection","bc_coinfection",
-                 "resp_coinfection","urine_coinfection")
+                 "resp_coinfection","urine_coinfection",'Urea_val')
 
 imputed_columns <- c("eGFR_val","WCC","Neutrophils","Lymphocytes","NLR_val",
                      "HB_val","PLT_val","CRP_val")

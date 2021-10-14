@@ -31,7 +31,8 @@ if (1) {
                   "viral_coinfection_TRUE", #"viral_coinfection_FALSE"        
                   #"bc_coinfection_TRUE", #"bc_coinfection_FALSE"
                   "resp_coinfection_TRUE", #"resp_coinfection_FALSE"         
-                  #"urine_coinfection_TRUE", #"urine_coinfection_FALSE"    
+                  #"urine_coinfection_TRUE", #"urine_coinfection_FALSE"
+                  "Urea_val_Normal","Urea_val_Abnormal", #"Urea_val_Test not taken"
                   #"OnAdmission_FALSE","OnAdmission_NA",#"OnAdmission_TRUE"       
                   "outcome" #always have outcome in final column
   )
@@ -69,6 +70,7 @@ if (0) {
                   "bc_coinfection_TRUE", #"bc_coinfection_FALSE"
                   "resp_coinfection_TRUE", #"resp_coinfection_FALSE"
                   "urine_coinfection_TRUE", #"urine_coinfection_FALSE"
+                  "Urea_val_Normal","Urea_val_Abnormal", #"Urea_val_Test not taken"
                   "OnAdmission_FALSE","OnAdmission_NA"#"OnAdmission_TRUE"
   )
 }
@@ -108,6 +110,7 @@ if (0) {
   "bc_coinfection_TRUE", #"bc_coinfection_FALSE"
   "resp_coinfection_TRUE", #"resp_coinfection_FALSE"
   "urine_coinfection_TRUE", #"urine_coinfection_FALSE"
+  "Urea_val_Normal","Urea_val_Abnormal", #"Urea_val_Test not taken"
   "OnAdmission_FALSE","OnAdmission_NA"#"OnAdmission_TRUE"
   )
 }

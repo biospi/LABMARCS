@@ -61,8 +61,8 @@ if (!exists("BatchAnalysisOn")) {
     
     # Cross Validation Parameters
     # Set number of outer fold repeats, outer folds and inner folds
-    repeats <- 25 #1000KCH How many times should we shuffle the data
-    outsidefolds <- 2 #10KCH How many splits of the shuffled data (5=20%)
+    repeats <- 20 #1000KCH How many times should we shuffle the data
+    outsidefolds <- 5 #10KCH How many splits of the shuffled data (5=20%)
     # can't go lower as small test sets may only have example of one class
     insidefolds <- 5 #10KCH (only relevant for LASSO)
 }
@@ -405,228 +405,181 @@ if (!BatchAnalysisOn) {
 
 #----------------------------------------------------------------------
 # RUN SET OF GLM MODELS WITH NO CROSS VALIDATION
-if (1) {
-  #Run univariate tests to get an idea of each variables prediction power
-  print('Run Univariate tests...')
-  source(paste(work_path,'LABMARCS_LogisticRegression_Run_Univariate_Tests.R', sep = ''))
 
-  #Run a GLM on all data - our benchmark for best performance
-  SelectedData <- fulldata
-  SelectedDataOutcome <- fulldata
-  SelectedData_str <- paste('TrainFullData_TestFullData_N', as.character(dim(SelectedData)[1]) , sep = '')
-  print('Run GLM with full data test/train...')
-  source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
-  
-  #save things to our summary data table
-  glm_fulldata_batch_df[m_ctr,] <- c('GLM', readingwanted_str, dateRange, outcome_str,
-                                     out_acc,out_auc, out_brier, out_sen, out_spec)
-  write.table(glm_fulldata_batch_df, file = paste(output_path,'Batch_GLM_TrainFullData_TestFullData_Summary_Table.csv',sep = ''),
-              row.names = FALSE, sep = ',')
-  
-  
-  #Run a GLM only on train.data (UHB,NBT) and test on test.data (Weston)
-  SelectedData <- train.data
-  SelectedDataOutcome <- train.data
-  SelectedData_str <- paste('Train_TrainData_Test_TrainData_N', as.character(dim(SelectedData)[1]) , sep = '')
-  print('Run GLM only on train data for test/train...')
-  source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
-  
-  #save things to our summary data table
-  glm_traindata_batch_df1[m_ctr,] <- c('GLM', readingwanted_str, dateRange, outcome_str,
-                                      out_acc,out_auc, out_brier, out_sen, out_spec)
-  write.table(glm_traindata_batch_df1, file = paste(output_path,'Batch_GLM_Train_TrainData_Test_TrainData_Summary_Table.csv',sep = ''),
-              row.names = FALSE, sep = ',')
+#Run univariate tests to get an idea of each variables prediction power
+print('Run Univariate tests...')
+source(paste(work_path,'LABMARCS_LogisticRegression_Run_Univariate_Tests.R', sep = ''))
 
-  #Run a GLM only on train.data (UHB,NBT) and test on test.data (Weston)
-  SelectedData <- train.data
-  SelectedDataOutcome <- test.data
-  SelectedData_str <- paste('Train_TrainData_Test_TestData_N', as.character(dim(SelectedData)[1]) , sep = '')
-  print('Run GLM, train on UHB/NBT, test on Weston...')
-  source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
+#Run a GLM on all data - our benchmark for best performance
+SelectedData <- fulldata
+SelectedDataOutcome <- fulldata
+SelectedData_str <- paste('TrainFullData_TestFullData_N', as.character(dim(SelectedData)[1]) , sep = '')
+print('Run GLM with full data test/train...')
+source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
   
-  #save things to our summary data table
-  glm_traindata_batch_df2[m_ctr,] <- c('GLM', readingwanted_str, dateRange, outcome_str,
-                                      out_acc,out_auc, out_brier, out_sen, out_spec)
-  write.table(glm_traindata_batch_df2, file = paste(output_path,'Batch_GLM_Train_TrainData_Test_TestData_Summary_Table.csv',sep = ''),
-              row.names = FALSE, sep = ',')
+#save things to our summary data table
+glm_fulldata_batch_df[m_ctr,] <- c('GLM', readingwanted_str, dateRange, outcome_str,
+                                   out_acc,out_auc, out_brier, out_sen, out_spec)
+write.table(glm_fulldata_batch_df, file = paste(output_path,'Batch_GLM_TrainFullData_TestFullData_Summary_Table.csv',sep = ''),
+            row.names = FALSE, sep = ',')
   
-}
+  
+#Run a GLM only on train.data (UHB,NBT) and test on test.data (Weston)
+SelectedData <- train.data
+SelectedDataOutcome <- train.data
+SelectedData_str <- paste('Train_TrainData_Test_TrainData_N', as.character(dim(SelectedData)[1]) , sep = '')
+print('Run GLM only on train data for test/train...')
+source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
+  
+#save things to our summary data table
+glm_traindata_batch_df1[m_ctr,] <- c('GLM', readingwanted_str, dateRange, outcome_str,
+                                    out_acc,out_auc, out_brier, out_sen, out_spec)
+write.table(glm_traindata_batch_df1, file = paste(output_path,'Batch_GLM_Train_TrainData_Test_TrainData_Summary_Table.csv',sep = ''),
+            row.names = FALSE, sep = ',')
+
+#Run a GLM only on train.data (UHB,NBT) and test on test.data (Weston)
+SelectedData <- train.data
+SelectedDataOutcome <- test.data
+SelectedData_str <- paste('Train_TrainData_Test_TestData_N', as.character(dim(SelectedData)[1]) , sep = '')
+print('Run GLM, train on UHB/NBT, test on Weston...')
+source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
+  
+#save things to our summary data table
+glm_traindata_batch_df2[m_ctr,] <- c('GLM', readingwanted_str, dateRange, outcome_str,
+                                    out_acc,out_auc, out_brier, out_sen, out_spec)
+write.table(glm_traindata_batch_df2, file = paste(output_path,'Batch_GLM_Train_TrainData_Test_TestData_Summary_Table.csv',sep = ''),
+            row.names = FALSE, sep = ',')
+  
 
 
 #-RUN THE CROSS VALIDATION MODELS -------------------------------------------------
-if (1) {
-  
-  if (!BatchAnalysisOn) {
-    cv_batch_df1 <- data.frame(ModelType = NA, Reading = NA, Day = NA, Outcome = NA,
-                    MeanAUC = NA,  AUC_Q2_5 = NA, AUC_Q50 = NA, AUC_Q97_5 = NA, 
-                    MeanBrier =  NA, Brier_Q2_5 = NA, Brier_Q50 = NA, Brier_Q97_5 = NA, 
-                    MeanLambda =  NA, Lambda_Q2_5 = NA, Lambda_Q50 = NA, Lambda_Q97_5 = NA,
-                    MeanSensitivity =  NA, Sensitivity_Q2_5 = NA, Sensitivity_Q50 = NA, Sensitivity_Q97_5 = NA,
-                    MeanSpecificity =  NA, Specificity_Q2_5 = NA, Specificity_Q50 = NA, Specificity_Q97_5 = NA)
+if (!BatchAnalysisOn) {
+  cv_batch_df1 <- data.frame(ModelType = NA, Reading = NA, Day = NA, Outcome = NA,
+                  MeanAUC = NA,  AUC_Q2_5 = NA, AUC_Q50 = NA, AUC_Q97_5 = NA, 
+                  MeanBrier =  NA, Brier_Q2_5 = NA, Brier_Q50 = NA, Brier_Q97_5 = NA, 
+                  MeanLambda =  NA, Lambda_Q2_5 = NA, Lambda_Q50 = NA, Lambda_Q97_5 = NA,
+                  MeanSensitivity =  NA, Sensitivity_Q2_5 = NA, 
+                  Sensitivity_Q50 = NA, Sensitivity_Q97_5 = NA,
+                  MeanSpecificity =  NA, Specificity_Q2_5 = NA, 
+                  Specificity_Q50 = NA, Specificity_Q97_5 = NA)
     
-    cv_batch_df2 <- cv_batch_df1 
-  }
-
-  #Do cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
-  crossval.train.data <- train.data
-  #don't need to specify crossval.test.data as it will be a % from crossval.train.data
-  generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified  
-  cv_desc = 'Train_CVTrainData_Test_CVTestData_'
-  p_str <- 'T' #(T)rain, text prefix for roc curve compendium variables
-  print('Run GLM with CrossVal Train only UHB/NBT 80/20 split...')
-  source('LABMARCS_LogisticRegression_CrossValidate_GLM_On_Selected_Data.R')
-  #save things to our summary data table
-  cv_batch_df1[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
-                           mean(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
-                           mean(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
-                           mean(lambda.store), lambda.store_quantile[1],
-                           lambda.store_quantile[2],lambda.store_quantile[3],
-                           mean(sensitivity_store),sensitivity_quantile[1],sensitivity_quantile[2],sensitivity_quantile[3], #place holder for spec)   
-                           mean(specificity_store),specificity_quantile[1],specificity_quantile[2],specificity_quantile[3]) #place holder for sens
-  
-  write.table(cv_batch_df1, file = paste(output_path, model_desc_str, 'Summary_Table.csv',sep = ''),
-              row.names = FALSE, sep = ',')
-  
-  #Do cross validation training on (1 - 1/outsidefolds) but test on excluded dataset
-  #for generalisation
-  crossval.train.data <- train.data
-  crossval.test.data <- test.data
-  generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified  
-  cv_desc = 'Train_CVTrainData_Test_GeneraliseTestData_'
-  p_str <- 'G' #(G)eneralise
-  print('Run GLM with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
-  source('LABMARCS_LogisticRegression_CrossValidate_GLM_On_Selected_Data.R')
-  #save things to our summary data table
-  cv_batch_df2[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
-                            mean(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
-                            mean(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
-                            mean(lambda.store), lambda.store_quantile[1],
-                            lambda.store_quantile[2],lambda.store_quantile[3],
-                            mean(sensitivity_store),sensitivity_quantile[1],sensitivity_quantile[2],sensitivity_quantile[3], #place holder for spec)   
-                            mean(specificity_store),specificity_quantile[1],specificity_quantile[2],specificity_quantile[3]) #place holder for sens
-
-  write.table(cv_batch_df2, file = paste(output_path, model_desc_str, 'Summary_Table.csv',sep = ''),
-              row.names = FALSE, sep = ',')
-  
-} #Matches IF(1)
-
-
-
-if (0) {  
-  # LOOK AT MINIMUM REPORTING FOR STABILITY ANALYSES FROM STATS RECOMMENDATIONS
-  #---------------------------------------------------------------------------
-  print("Run Lasso with ALL data")
-  # Create the final model over the whole dataset, with the expected performance 
-  #from nested CV
-  
-  #stick with self created dummy vars (model.matrix builds for you)
-  x1 <- model.matrix(outcome~., fulldata_origin_filter)[,-1]
-  x2 <- model.matrix(outcome~., fulldata)[,2:dim(fulldata)[2]]
-  
-  #get estimates for setting lambda at 1se
-  cv.lasso1 <- cv.glmnet(x1,fulldata_origin_filter$outcome, alpha = 1, data = fulldata,  
-                         nfolds = insidefolds, family = "binomial")
-  
-  cv.lasso2 <- cv.glmnet(x2,fulldata$outcome, alpha = 1, data = fulldata,  
-                         nfolds = insidefolds, family = "binomial")
-  
-  StatModel_FullLasso1 <- glmnet(x1, fulldata_origin_filter$outcome, alpha = 1, family = "binomial",
-                                lambda = cv.lasso1$lambda.1se)
-  
-  StatModel_FullLasso2 <- glmnet(x2, fulldata$outcome, alpha = 1, family = "binomial",
-                                lambda = cv.lasso2$lambda.1se)
-  
-  pdf(paste(save_path, 'Model_LassoAllData_Lambda.pdf',sep = ''))
-  plot(cv.lasso)
-  dev.off()
-  
-  sink(paste(save_path, 'Model_LassoAllData_Summary.txt',sep = ''))
-
-  # (ii) Global model standard errors, variables and coefficients
-  #The global model including all candidate variables with regression 
-  #coefficients and standard errors. (See also REMARK guidelines, 
-  #item 17, Altman et al., 2012).
-    
-  # Display regression coefficients
-  print('Coefficients')
-  print(coef(StatModel_FullLasso))
-  
-  # Examine odds ratios
-  print('Odds Ratios')
-  print(exp(coef(StatModel_FullLasso)))
-  
-  # Test the best predicted lambda on the remaining data in the outer fold
-  x.test <- model.matrix(outcome ~., test.data)[,-1]
-  probabilities <- StatModel_FullLasso %>% predict(newx = x.test, type = "response")
-  predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
-  
-  conf_matrix <- table(predicted.classes,test.data$outcome)
-  
-  tab <- matrix(c(0,0,0,0), ncol = 2, byrow = TRUE)
-  colnames(tab) <- c('0','1')
-  rownames(tab) <- c('0','1')
-  tab <- as.table(tab)
-  
-  #sometimes the conf matrix is incomplete copy what we do have to tab
-  tryCatch(tab[1,1] <- conf_matrix[1,'FALSE'], error = function(e) {tab[1,1] <- 0 } )
-  tryCatch(tab[2,1] <- conf_matrix[2,'FALSE'], error = function(e) {tab[2,1] <- 0 } )
-  tryCatch(tab[1,2] <- conf_matrix[1,'TRUE'], error = function(e) {tab[1,2] <- 0 } )
-  tryCatch(tab[2,2] <- conf_matrix[2,'TRUE'], error = function(e) {tab[2,2] <- 0 } )
-  
-  print('Sensitivity')
-  out_sen <- as.numeric(sensitivity(tab)['.estimate'])
-  print(out_sen)
-  
-  print('Specificity')
-  out_spec <- as.numeric(specificity(tab)['.estimate'])
-  out_spec <- print(out_spec)
-  
-  # Model accuracy
-  print('Accuracy')
-  out_acc <- mean(predicted.classes == test.data$outcome)
-  print(out_acc)
-  
-  # Plot ROC curve and find AUC
-  roccurve3 <- roc(outcome ~ c(probabilities), data = test.data)
-  out_auc <- auc(roccurve3)
-  print('AUC')
-  print(out_auc)
-  
-  ggroc(roccurve3, legacy.axes = T) +
-    geom_abline(slope = 1 ,intercept = 0) + # add identity line
-    theme(
-      panel.background = element_blank(), 
-      axis.title.x = element_text(size = 18, face = 'bold'),
-      axis.title.y = element_text(size = 18, face = 'bold'),
-      panel.border = element_rect(size = 2, fill = NA), 
-      axis.text.x = element_text(size = 14, face = 'bold'),
-      axis.text.y = element_text(size = 14, face = 'bold')) +
-    xlab('1 - Specificity') +
-    ylab('Sensitivity') +
-    scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
-    scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25))
-  ggsave(paste(save_path, 'Model_LassoAllData_ROC.pdf', sep = ''),device = 'pdf',
-         width = 20, height = 20, units = 'cm', dpi = 300)
-  
-  # Brier score
-  f_t <- probabilities
-  o_t <- test.data$outcome
-  out_brier <- mean(((f_t) - o_t)^2)
-  #out_brier <- BrierScore(StatModel_FullLasso) ?pred missing - GLMnet?
-  print('Brier score')
-  print(out_brier)
-  sink()
-  sink()
-  
-  print("Saving results tables...")
-  m_ctr <- m_ctr + 1
-  #save things to our summary data table
-  batch_df[m_ctr,] <- c('FullLasso', readingwanted_str, dateRange, outcome_str,
-                        out_acc,out_auc, out_brier, out_sen, out_spec)
-  write.table(batch_df, file = paste(output_path,'Batch_Model_Summary_Table.csv',sep = ''),
-              row.names = FALSE)
-
-  # ---------------------------------------------------------------------
-  print('-- Done! --')
-
+  cv_batch_df2 <- cv_batch_df1 
+  cv_batch_df3 <- cv_batch_df1 
+  cv_batch_df4 <- cv_batch_df1 
 }
+  
+
+#--------------------------------------------------------------------------------------
+#Do GLM cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
+crossval.train.data <- train.data
+#don't need to specify crossval.test.data as it will be a % from crossval.train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified  
+cv_desc = 'Train_CVTrainData_Test_CVTestData_'
+p_str <- 'T' #(T)rain, text prefix for roc curve compendium variables
+print('Run GLM with CrossVal Train only UHB/NBT 80/20 split...')
+source('LABMARCS_LogisticRegression_CrossValidate_GLM_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df1[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                         median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                         median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                         median(lambda.store), lambda.store_quantile[1],
+                         lambda.store_quantile[2],lambda.store_quantile[3],
+                         median(sensitivity_store),sensitivity_quantile[1],
+                         sensitivity_quantile[2],sensitivity_quantile[3], 
+                         median(specificity_store),specificity_quantile[1],
+                         specificity_quantile[2],specificity_quantile[3]) 
+
+write.table(cv_batch_df1, file = paste(output_path, 'GLM_Train_Summary_Compendium.csv',sep = ''),
+            row.names = FALSE, sep = ',')
+
+#--------------------------------------------------------------------------------------
+#Do GLM cross validation training on (1 - 1/outsidefolds) but test on excluded dataset
+#for generalisation
+crossval.train.data <- train.data
+crossval.test.data <- test.data
+generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified 
+cv_desc = 'Train_CVTrainData_Test_GeneraliseTestData_'
+p_str <- 'G' #(G)eneralise
+print('Run GLM with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
+source('LABMARCS_LogisticRegression_CrossValidate_GLM_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df2[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3]) 
+  write.table(cv_batch_df2, file = paste(output_path, 'GLM_Generalise_Summary_Compendium.csv',sep = ''),
+            row.names = FALSE, sep = ',')
+
+
+#--------------------------------------------------------------------------------------
+#Do Lasso cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
+crossval.train.data <- train.data
+#don't need to specify crossval.test.data as it will be a % from crossval.train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified  
+cv_desc = 'Train_CVTrainData_Test_CVTestData_'
+p_str <- 'TL' #(T)rain, text prefix for roc curve compendium variables
+print('Run LASSO with CrossVal Train only UHB/NBT 80/20 split...')
+source('LABMARCS_LogisticRegression_CrossValidate_LASSO_On_Selected_Data.R')
+  
+#save things to our summary data table
+cv_batch_df3[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3]) 
+  
+write.table(cv_batch_df3, file = paste(output_path, 'LASSO_Train_Summary_Compendium.csv',sep = ''),
+            row.names = FALSE, sep = ',')
+
+if (m_ctr == 1) { #first time create table
+  cv_batch_varlist_df1 <- data.frame(matrix(data = NA, nrow = 1, ncol = 4 + length(varnames[[1]])))
+  colnames(cv_batch_varlist_df1)[1:4] <- c('ModelType', 'Reading', 'Day', 'Outcome')
+  colnames(cv_batch_varlist_df1)[5:dim(cv_batch_varlist_df1)[2]] <- varnames[[1]]
+} 
+  
+#save variable frequency selection 
+cv_batch_varlist_df1[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                                  varcount/(n_models)*100)
+  
+write.table(cv_batch_varlist_df1, file = paste(output_path, 'LASSO_Variable_Selection_Compendium.csv',
+                                       sep = ''), row.names = FALSE, sep = ',')
+  
+#--------------------------------------------------------------------------------------
+  
+  
+#--------------------------------------------------------------------------------------
+#Do Lasso cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
+crossval.train.data <- train.data
+crossval.test.data <- test.data
+generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified 
+cv_desc = 'Train_CVTrainData_Test_GeneraliseTestData_'
+p_str <- 'GL' #(T)rain, text prefix for roc curve compendium variables
+print('Run LASSO with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
+source('LABMARCS_LogisticRegression_CrossValidate_LASSO_On_Selected_Data.R')
+  
+#save things to our summary data table
+cv_batch_df4[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3]) 
+  
+write.table(cv_batch_df4, file = paste(output_path, 'LASSO_Generalise_Summary_Compendium.csv',sep = ''),
+            row.names = FALSE, sep = ',')
+#--------------------------------------------------------------------------------------
+  
