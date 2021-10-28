@@ -53,10 +53,10 @@ Comorbidities <- 0
 # readingwanted variables.
 
 if (!exists("BatchAnalysisOn")) {
-    dateRange <- 7 # 1, 3, 5, 7,14days
+    dateRange <- 3 # 1, 3, 5, 7,14days
     readingwanted <- 0 # 0-worst, 1-first, 2-mean
     # outcomeselection (1) all severe outcomes (2) ICU admission (3) death
-    outcomeselection <- 3
+    outcomeselection <- 1
     BatchAnalysisOn <- 0
     
     # Cross Validation Parameters
@@ -274,53 +274,67 @@ summary(fulldata)
 
 # INPUT EXAMINATION ----------------------------------------------------
 
-# Calculate the skewness of the continuous variables
-skewness(fulldata$Age, na.rm = TRUE) # moderate negative skew
-# Transform variables which have skew
-fulldata$Age <- log10(max(fulldata$Age + 1) - fulldata$Age)
-# Check new skewness values
-skewness(fulldata$Age, na.rm = TRUE) # nearly approximately symmetric
-  
-# Plot histograms of continuous variables to examine distributions
-nbreaks <- pretty(range(fulldata$Age),n = 20)
-par(mfrow = c(1,1))
-xlab <- paste('Age, bin width=', as.character(nbreaks[2] - nbreaks[1]))
-pdf(paste(save_path, 'age_histogram_transformed.pdf',sep = ''))
-hist(fulldata$Age,main = "Distribution of Patient Ages",xlab = xlab, breaks = nbreaks)
-dev.off()
-  
-# Scale continuous variables to have mean 0 and sd of 1
-fulldata$Age <- scale(fulldata$Age)[, 1]
-  
-# Check the scaling has worked as expected
-#mean(fulldata$Age)
-#sd(fulldata$Age)
-  
-# Plot regularized variables
-# Plot histograms of continuous variables to examine distributions
-nbreaks <- pretty(range(fulldata$Age),n = 20)
-par(mfrow = c(1,1))
-xlab <- paste('Age, bin width=', as.character(nbreaks[2] - nbreaks[1]))
-pdf(paste(save_path, 'age_histogram_regularized.pdf',sep = '' ))
-hist(fulldata$Age,main = "Distribution of Patient Ages",xlab = xlab, breaks = nbreaks)
-dev.off()
-  
-# Plot boxplots to look for outliers
-par(mfrow = c(1,1))
-pdf(paste(save_path, 'age_boxplot_outliers.pdf',sep = ''))
-boxplot(fulldata$Age,main = "Age", ylab = "Years")
-dev.off()
-  
-# Examine continuous variables before winsorisation
-summary(fulldata$Age)
+#lets make age categorical too <50, 50-59, 60-69, 70-80, 80+
+fulldata$Age_Below50 <- fulldata$Age < 50
+fulldata$Age_50_59 <- (fulldata$Age >= 50) & (fulldata$Age < 60)
+fulldata$Age_60_69 <- (fulldata$Age >= 60) & (fulldata$Age < 70)
+fulldata$Age_70_79 <- (fulldata$Age >= 70) & (fulldata$Age < 80)
+fulldata$Age_80above <- (fulldata$Age >= 80)
 
-# Winsorise the data at the 1st and 99% percentile (replace extreme values)
-fulldata$Age <- Winsorize(fulldata$Age, minval = NULL, maxval = NULL,
-                             probs = c(0.01, 0.99), na.rm = FALSE, type = 7)
-  
-# Examine continuous variables after winsorisation
-summary(fulldata$Age)
 
+
+#this transforms age in a way different from ISARIC - not sure if needed
+if (0) {
+  # Calculate the skewness of the continuous variables
+  skewness(fulldata$Age, na.rm = TRUE) # moderate negative skew
+  # Transform variables which have skew
+  
+  #note this transform flips things so younger is a higher number
+  fulldata$Age <- log10(max(fulldata$Age + 1) - fulldata$Age)
+  
+  # Check new skewness values
+  skewness(fulldata$Age, na.rm = TRUE) 
+    
+  # Plot histograms of continuous variables to examine distributions
+  nbreaks <- pretty(range(fulldata$Age),n = 20)
+  par(mfrow = c(1,1))
+  xlab <- paste('Age, bin width=', as.character(nbreaks[2] - nbreaks[1]))
+  pdf(paste(save_path, 'age_histogram_transformed.pdf',sep = ''))
+  hist(fulldata$Age,main = "Distribution of Patient Ages",xlab = xlab, breaks = nbreaks)
+  dev.off()
+    
+  # Scale continuous variables to have mean 0 and sd of 1
+  fulldata$Age <- scale(fulldata$Age)[, 1]
+    
+  # Check the scaling has worked as expected
+  #mean(fulldata$Age)
+  #sd(fulldata$Age)
+    
+  # Plot regularized variables
+  # Plot histograms of continuous variables to examine distributions
+  nbreaks <- pretty(range(fulldata$Age),n = 20)
+  par(mfrow = c(1,1))
+  xlab <- paste('Age, bin width=', as.character(nbreaks[2] - nbreaks[1]))
+  pdf(paste(save_path, 'age_histogram_regularized.pdf',sep = '' ))
+  hist(fulldata$Age,main = "Distribution of Patient Ages",xlab = xlab, breaks = nbreaks)
+  dev.off()
+    
+  # Plot boxplots to look for outliers
+  par(mfrow = c(1,1))
+  pdf(paste(save_path, 'age_boxplot_outliers.pdf',sep = ''))
+  boxplot(fulldata$Age,main = "Age", ylab = "Years")
+  dev.off()
+    
+  # Examine continuous variables before winsorisation
+  summary(fulldata$Age)
+  
+  # Winsorise the data at the 1st and 99% percentile (replace extreme values)
+  fulldata$Age <- Winsorize(fulldata$Age, minval = NULL, maxval = NULL,
+                               probs = c(0.01, 0.99), na.rm = FALSE, type = 7)
+  
+  # Examine continuous variables after winsorisation
+  summary(fulldata$Age)
+}
  
 # ASSIGN TRAINING AND TEST DATA SETS ----------------------------------
 
@@ -402,6 +416,7 @@ if (!BatchAnalysisOn) {
 } else {
   m_ctr <- m_ctr + 1
 }
+
 
 #----------------------------------------------------------------------
 # RUN SET OF GLM MODELS WITH NO CROSS VALIDATION

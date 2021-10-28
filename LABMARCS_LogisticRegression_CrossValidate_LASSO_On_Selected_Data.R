@@ -440,18 +440,24 @@ for (ii in 1:length(varratios)) {
 colnames(varratios_df) <- varnames[[1]]
 write.csv(varratios_df,paste(save_path,'LASSO_VarRatios.csv', sep = ''))
 
-varratios_stat_df <- data.frame() 
+#add in variables details about model setup
+varratios_stat_df[m_ctr,1] <- outcome_str
+varratios_stat_df[m_ctr,2] <- readingwanted_str
+varratios_stat_df[m_ctr,3] <- dateRange
+
 #prepare summary of var ratios depending on model stability
 for (ii in 1:dim(varratios_df)[2]) {
   #if majority of models have this column as significant then get stats
   if ( sum(varratios_df[,ii] > 1.01 | varratios_df[,ii] < 0.99) > 50) {
     #for frequent (>50) coefficients, save the meadian value
-    varratios_stat_df[m_ctr,ii] <- summary(varratios_df[,ii])[[3]]
+    varratios_stat_df[m_ctr, ii + 3] <- summary(varratios_df[,ii])[[3]]
   } else {
-    varratios_stat_df[m_ctr,ii] <- NA
+    varratios_stat_df[m_ctr, ii + 3] <- NA
   }
 }
 
+#note this is a compendium - we don't need to save each loop iteration but do so just in case 
+colnames(varratios_stat_df) <- varnames[[1]]
 write.csv(varratios_stat_df,paste(output_path,'LASSO_MedianVarRatios_Compendium.csv', sep = ''))
 
 

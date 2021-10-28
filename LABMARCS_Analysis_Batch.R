@@ -26,10 +26,10 @@ output_path <- paste(work_path, 'output/', sep = '')
 # PART 1: Data Preparation
 #Data prep only needs to be run once (assuming no changes have been made) and
 #can then be turned off if you wish to focus on stats output
-if (0) {
+if (1) {
 # Loop through the data preparation operations
-  for (day_idx in c(1,3,5,7,14)) {
-    for (reading_idx in c(0,1,2)) {
+  for (day_idx in c(1,3,5,7,14)) { 
+    for (reading_idx in c(0,1,2)) { 
       dateRange <- day_idx # number of days
       readingwanted <- reading_idx # 0-worst, 1-first, 2-mean
       print(paste('PREPARING: Day:',dateRange,'Reading:', readingwanted,'-----'))
@@ -84,12 +84,13 @@ if (1) {
   cv_batch_df3 <- cv_batch_df1 
   cv_batch_df4 <- cv_batch_df1 
   
+  varratios_stat_df <- data.frame() 
   # Now loop through the logistic regression models with different
   # options specified
   # Start by lopping through the data preparation operations
   
-  for (day_idx in c(1,3,5,7,14)) {
-    for (reading_idx in c(0,1,2)) {
+  for (day_idx in c(1,3,5,7)) {
+    for (reading_idx in c(0,1,2)) { # 0-worst, 1-first, 2-mean
       for (outcome_idx in c(1,3) ) {  #ALL Severe (1)  or Death (3)   
         dateRange <- day_idx # 1, 3 or 5 days
         readingwanted <- reading_idx # 0-worst, 1-first, 2-mean
@@ -102,6 +103,7 @@ if (1) {
     }
   }
 
+  
   #plotting text 
   str_p <- paste('_R',as.character(repeats),'_OF', as.character(outsidefolds), '_IF', 
                  as.character(insidefolds), '_', sep = '')
@@ -111,8 +113,7 @@ if (1) {
   roc_cv_p_T_1_1_0 + roc_cv_p_T_1_1_1 + roc_cv_p_T_1_1_2 + 
     roc_cv_p_T_3_1_0 + roc_cv_p_T_3_1_1 + roc_cv_p_T_3_1_2 + 
     roc_cv_p_T_5_1_0 + roc_cv_p_T_5_1_1 + roc_cv_p_T_5_1_2 + 
-    roc_cv_p_T_7_1_0 + roc_cv_p_T_7_1_1 + roc_cv_p_T_7_1_2 + 
-    roc_cv_p_T_14_1_0 + roc_cv_p_T_14_1_1 + roc_cv_p_T_14_1_2 +
+    roc_cv_p_T_7_1_0 + roc_cv_p_T_7_1_1 + roc_cv_p_T_7_1_2 +  
     plot_layout(ncol = 3) + plot_annotation(title = 'All Severe: Train',
                                             theme = theme(plot.title = element_text(size = 26)))
   
@@ -125,8 +126,8 @@ if (1) {
   roc_cv_p_G_1_1_0 + roc_cv_p_G_1_1_1 + roc_cv_p_G_1_1_2 + 
     roc_cv_p_G_3_1_0 + roc_cv_p_G_3_1_1 + roc_cv_p_G_3_1_2 + 
     roc_cv_p_G_5_1_0 + roc_cv_p_G_5_1_1 + roc_cv_p_G_5_1_2 + 
-    roc_cv_p_G_7_1_0 + roc_cv_p_G_7_1_1 + roc_cv_p_G_7_1_2 + 
-    roc_cv_p_G_14_1_0 + roc_cv_p_G_14_1_1 + roc_cv_p_G_14_1_2 + 
+    roc_cv_p_G_7_1_0 + roc_cv_p_G_7_1_1 + roc_cv_p_G_7_1_2 +  
+    #roc_cv_p_G_14_1_0 + roc_cv_p_G_14_1_1 + roc_cv_p_G_14_1_2 + 
     plot_layout(ncol = 3) + plot_annotation(title = 'All Severe: Generalise',
                                             theme = theme(plot.title = element_text(size = 26)))
   
@@ -140,8 +141,8 @@ if (1) {
   roc_cv_p_T_1_3_0 + roc_cv_p_T_1_3_1 + roc_cv_p_T_1_3_2 + 
     roc_cv_p_T_3_3_0 + roc_cv_p_T_3_3_1 + roc_cv_p_T_3_3_2 + 
     roc_cv_p_T_5_3_0 + roc_cv_p_T_5_3_1 + roc_cv_p_T_5_3_2 + 
-    roc_cv_p_T_7_3_0 + roc_cv_p_T_7_3_1 + roc_cv_p_T_7_3_2 + 
-    roc_cv_p_T_14_3_0 + roc_cv_p_T_14_3_1 + roc_cv_p_T_14_3_2 +
+    roc_cv_p_T_7_3_0 + roc_cv_p_T_7_3_1 + roc_cv_p_T_7_3_2 +  
+    #roc_cv_p_T_14_3_0 + roc_cv_p_T_14_3_1 + roc_cv_p_T_14_3_2 +
     plot_layout(ncol = 3) + plot_annotation(title = 'Death: Train',
                                             theme = theme(plot.title = element_text(size = 26)))
   
@@ -154,8 +155,8 @@ if (1) {
   roc_cv_p_G_1_3_0 + roc_cv_p_G_1_3_1 + roc_cv_p_G_1_3_2 + 
     roc_cv_p_G_3_3_0 + roc_cv_p_G_3_3_1 + roc_cv_p_G_3_3_2 + 
     roc_cv_p_G_5_3_0 + roc_cv_p_G_5_3_1 + roc_cv_p_G_5_3_2 + 
-    roc_cv_p_G_7_3_0 + roc_cv_p_G_7_3_1 + roc_cv_p_G_7_3_2 + 
-    roc_cv_p_G_14_3_0 + roc_cv_p_G_14_3_1 + roc_cv_p_G_14_3_2 +
+    roc_cv_p_G_7_3_0 + roc_cv_p_G_7_3_1 + roc_cv_p_G_7_3_2 +  
+    #roc_cv_p_G_14_3_0 + roc_cv_p_G_14_3_1 + roc_cv_p_G_14_3_2 +
     plot_layout(ncol = 3) + plot_annotation(title = 'Death: Generalise', 
                                             theme = theme(plot.title = element_text(size = 26)))
   
@@ -169,8 +170,8 @@ if (1) {
   roc_cv_p_TL_1_1_0 + roc_cv_p_TL_1_1_1 + roc_cv_p_TL_1_1_2 + 
     roc_cv_p_TL_3_1_0 + roc_cv_p_TL_3_1_1 + roc_cv_p_TL_3_1_2 + 
     roc_cv_p_TL_5_1_0 + roc_cv_p_TL_5_1_1 + roc_cv_p_TL_5_1_2 + 
-    roc_cv_p_TL_7_1_0 + roc_cv_p_TL_7_1_1 + roc_cv_p_TL_7_1_2 + 
-    roc_cv_p_TL_14_1_0 + roc_cv_p_TL_14_1_1 + roc_cv_p_TL_14_1_2 +
+    roc_cv_p_TL_7_1_0 + roc_cv_p_TL_7_1_1 + roc_cv_p_TL_7_1_2 +  
+    #roc_cv_p_TL_14_1_0 + roc_cv_p_TL_14_1_1 + roc_cv_p_TL_14_1_2 +
     plot_layout(ncol = 3) + plot_annotation(title = 'All Severe: Train',
                                             theme = theme(plot.title = element_text(size = 26)))
   
@@ -183,8 +184,8 @@ if (1) {
   roc_cv_p_GL_1_1_0 + roc_cv_p_GL_1_1_1 + roc_cv_p_GL_1_1_2 + 
     roc_cv_p_GL_3_1_0 + roc_cv_p_GL_3_1_1 + roc_cv_p_GL_3_1_2 + 
     roc_cv_p_GL_5_1_0 + roc_cv_p_GL_5_1_1 + roc_cv_p_GL_5_1_2 + 
-    roc_cv_p_GL_7_1_0 + roc_cv_p_GL_7_1_1 + roc_cv_p_GL_7_1_2 + 
-    roc_cv_p_GL_14_1_0 + roc_cv_p_GL_14_1_1 + roc_cv_p_GL_14_1_2 + 
+    roc_cv_p_GL_7_1_0 + roc_cv_p_GL_7_1_1 + roc_cv_p_GL_7_1_2 +  
+    #roc_cv_p_GL_14_1_0 + roc_cv_p_GL_14_1_1 + roc_cv_p_GL_14_1_2 + 
     plot_layout(ncol = 3) + plot_annotation(title = 'All Severe: Generalise',
                                             theme = theme(plot.title = element_text(size = 26)))
   
@@ -198,8 +199,8 @@ if (1) {
   roc_cv_p_TL_1_3_0 + roc_cv_p_TL_1_3_1 + roc_cv_p_TL_1_3_2 + 
     roc_cv_p_TL_3_3_0 + roc_cv_p_TL_3_3_1 + roc_cv_p_TL_3_3_2 + 
     roc_cv_p_TL_5_3_0 + roc_cv_p_TL_5_3_1 + roc_cv_p_TL_5_3_2 + 
-    roc_cv_p_TL_7_3_0 + roc_cv_p_TL_7_3_1 + roc_cv_p_TL_7_3_2 + 
-    roc_cv_p_TL_14_3_0 + roc_cv_p_TL_14_3_1 + roc_cv_p_TL_14_3_2 +
+    roc_cv_p_TL_7_3_0 + roc_cv_p_TL_7_3_1 + roc_cv_p_TL_7_3_2 +  
+    #roc_cv_p_TL_14_3_0 + roc_cv_p_TL_14_3_1 + roc_cv_p_TL_14_3_2 +
     plot_layout(ncol = 3) + plot_annotation(title = 'Death: Train',
                                             theme = theme(plot.title = element_text(size = 26)))
   
@@ -212,8 +213,8 @@ if (1) {
   roc_cv_p_GL_1_3_0 + roc_cv_p_GL_1_3_1 + roc_cv_p_GL_1_3_2 + 
     roc_cv_p_GL_3_3_0 + roc_cv_p_GL_3_3_1 + roc_cv_p_GL_3_3_2 + 
     roc_cv_p_GL_5_3_0 + roc_cv_p_GL_5_3_1 + roc_cv_p_GL_5_3_2 + 
-    roc_cv_p_GL_7_3_0 + roc_cv_p_GL_7_3_1 + roc_cv_p_GL_7_3_2 + 
-    roc_cv_p_GL_14_3_0 + roc_cv_p_GL_14_3_1 + roc_cv_p_GL_14_3_2 +
+    roc_cv_p_GL_7_3_0 + roc_cv_p_GL_7_3_1 + roc_cv_p_GL_7_3_2 +  
+    #roc_cv_p_GL_14_3_0 + roc_cv_p_GL_14_3_1 + roc_cv_p_GL_14_3_2 +
     plot_layout(ncol = 3) + plot_annotation(title = 'Death: Generalise', 
                                             theme = theme(plot.title = element_text(size = 26)))
   

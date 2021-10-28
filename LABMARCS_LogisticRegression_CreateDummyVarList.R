@@ -1,8 +1,8 @@
 #Using univariate analysis include only vars that were statistically 
-#significant (or clinically significant)
+#significant (or clinically significant), Commented out variable at end is the reference group
 if (1) {
   dum_var_ls <- c("Gender_F", #Gender_M ODD gender is not significant in GLM
-                  "Age",
+                  'Age_50_59','Age_60_69','Age_70_79','Age_80above', # Age_Below50 
                   "BE_val_Normal","BE_val_Abnormal",  #"BE_val_Test not taken"
                   "BNP_val_Normal","BNP_val_Abnormal",#"BNP_val_Test not taken"
                   "CRP_val_Normal","CRP_val_Abnormal", #"CRP_val_NA"
@@ -40,7 +40,9 @@ if (1) {
 
 # #IF we only include those that have 30% > data
 if (0) {
-   dum_var_ls <- c("outcome","Age","Gender_F", #Gender_M
+   dum_var_ls <- c("outcome",
+                   'Age_50_59','Age_60_69','Age_70_79','Age_80above', # Age_Below50 
+                   "Gender_F", #Gender_M
                    #"BE_val_Normal","BE_val_Abnormal",  #"BE_val_Test not taken"
                    #"BNP_val_Normal","BNP_val_Abnormal",#"BNP_val_Test not taken"
                    "CRP_val_Normal","CRP_val_Abnormal", #"CRP_val_NA"
@@ -78,7 +80,9 @@ if (0) {
 # 
 # #INCLUDE ALL
 if (0) {
-  dum_var_ls <- c("outcome","Age","Gender_F", #Gender_M
+  dum_var_ls <- c("outcome",
+  'Age_50_59','Age_60_69','Age_70_79','Age_80above', # Age_Below50 
+  "Gender_F", #Gender_M
   "BE_val_Normal","BE_val_Abnormal",  #"BE_val_Test not taken"
   "BNP_val_Normal","BNP_val_Abnormal",#"BNP_val_Test not taken"
   "CRP_val_Normal","CRP_val_Abnormal", #"CRP_val_NA"

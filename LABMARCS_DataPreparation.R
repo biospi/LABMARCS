@@ -31,7 +31,7 @@ if (!exists('data_path')) {
 
 #Set needed variables if we are not running LABMARCS_Analysis_Batch.R
 if (!exists('BatchAnalysisOn')) { 
-  dateRange <- 1 # 1, 3, 5, 7, 14 days
+  dateRange <- 3 # 1, 3, 5, 7, 14 days
   readingwanted <- 0 # 0-worst, 1-first, 2-mean
 }
 
@@ -2194,9 +2194,18 @@ totalBinary <- merge(total,AvonCap,by = c("ID"),all.x = TRUE)
 # Missingness
 drop <- c("ID","admissionDate","dischargeDate","Gender","Age","died",
           "went_to_icu","severeOutcome")
+
 missingData = total[,!(names(total) %in% drop)]
-missingData %>% ff_glimpse()
+
+fn <- paste(work_path, 'totalBinary', as.character(dateRange), 
+            readingwanted_str, sep = '')
+
+tmp = missingData %>% ff_glimpse()
+write.csv(tmp[2], file = paste(fn,'.missing_data_summary.csv', sep = ''))
+
 missingData %>% missing_plot()
+ggsave(paste(fn,'.missing_values_map.pdf', sep = ''),device = 'pdf',
+       width = 20, height = 20, units = 'cm', dpi = 300)
 
 # Replace NAs for columns with "Test not taken"
 #replaceNAs_totalBinary <- totalBinary %>% dplyr::select(-ID,-admissionDate,-dischargeDate,
@@ -2224,6 +2233,4 @@ totalBinary$OnAdmission <- with(totalBinary,
                                        FALSE,TRUE))
 
 
-fn <- paste(work_path, 'totalBinary', as.character(dateRange), 
-         readingwanted_str, '.csv', sep = '')
-write.csv(x = totalBinary, file = fn )
+write.csv(x = totalBinary, file = paste(fn,'.csv', sep = ''))
