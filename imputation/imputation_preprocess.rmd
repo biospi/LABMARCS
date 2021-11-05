@@ -131,9 +131,109 @@ totalOutcomes$deathDate = as.Date(totalOutcomes$deathDate, format="%d/%m/%Y")
 totalOutcomes$ITU_Start = as.Date(totalOutcomes$ITU_Start, format="%d/%m/%Y")
 totalOutcomes$ITU_End = as.Date(totalOutcomes$ITU_End, format="%d/%m/%Y")
 totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format="%d/%m/%Y")
+totalOutcomes = totalOutcomes %>% 
+  rename(
+    ID = uob_ID
+  )
 ```
 
-### Load variable data
+
+```{r}
+## Demographics Table
+dem <- read.csv(file("masterlist.csv"))
+dem <- dem %>%
+  rename(ID = uob_ID, Age = agecat) %>%
+  distinct(ID, .keep_all = TRUE) %>%
+  dplyr::select(ID,Gender,Age)
+
+## Merge outcomes with demographics
+total <- merge(totalOutcomes,dem, by = "ID")
+
+# Remove those without admission information
+total <- total %>% filter(!is.na(admissionDate))
+
+# Missing discharge info
+# Remove those without discharge information
+total <- total %>% filter(!is.na(dischargeDate))
+
+# Age less than 18
+# Remove those less than 18
+total <- total %>% filter(Age >= 18)
+
+### Those that have died
+deceasedSubset = subset(total, !is.na(total$deathDate))
+deceasedSubset$died = TRUE
+
+### Add new column for died / didn't die to total
+total = merge(total,deceasedSubset, all.x = TRUE)
+total$died[is.na(total$died)] <- FALSE
+
+### Those that went to ICU
+ICU_subset = subset(totalOutcomes, !is.na(totalOutcomes$ITU_Start))
+ICU_subset$went_to_icu = TRUE
+
+### Add new column for went to ICU / didn't go to ICU
+total = merge(total,ICU_subset, all.x = TRUE)
+total$went_to_icu[is.na(total$went_to_icu)] <- FALSE
+
+### Died or went to ICU
+total$severeOutcome[total$went_to_icu == TRUE | total$died == TRUE] <- TRUE
+total$severeOutcome[is.na(total$severeOutcome)] <- FALSE
+
+
+## Add FIRST covid-positive date
+CovidCT <- read.csv(file("CovidCT.csv"))
+CovidCT['Measure'] = 'CovidCT'
+CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format = "%d/%m/%Y")
+CovidCT = CovidCT %>% 
+  rename(
+     ID = uob_ID,
+     date = Specimen.Date,
+  )
+
+uniqueIDs = unique(CovidCT$ID)
+CovidCT['positiveDate'] <- as.Date(NA)
+
+for (i in uniqueIDs) {
+  for (j in length(CovidCT$date[CovidCT$ID == i])) {
+      CovidCT[CovidCT$ID == i,]$positiveDate <- as.Date(CovidCT[CovidCT$ID == i,]$date[1], 
+                                                        format = "%d%m%Y")
+  }
+}
+
+CovidCT <- CovidCT %>% dplyr::select(ID,positiveDate) %>% distinct()
+
+total <- left_join(total,CovidCT)
+
+# Number of people who have multiple admissions is 54 at this point
+# Not sure how to treat but original assumption was to only use the original
+# admission date info (so by default death is excluded )
+
+# Only keep first admission
+ctr <- 0
+multi_admit_ids <- c()
+for (id in unique(total$ID)) {
+  id_match <- total$ID == id
+  if (sum(id_match) > 1) {
+    ctr <- ctr + 1
+    multi_admit_ids[ctr] <- id
+    total[id_match,] <- total[id_match,][1,]
+  }
+}
+ 
+for (id in multi_admit_ids) {
+  id_match <- total$ID == id
+  #print(total[id_match,])
+}
+
+total <- unique(total)
+```
+
+
+
+
+
+### Load variable data 
 #### BE - Bicarbonate Excess
 
 ```{r}
@@ -728,339 +828,292 @@ dem = dem %>%
 ```
 
 ## Distribution transformations
-### BE
 
 ```{r}
-BE_transform <- subset(BE, BE_val < 57.5)
+# BE_transform <- subset(BE, BE_val < 57.5)
+# BNP_transform <- BNP
+# BNP_transform$BNP_val <- log10(BNP_transform$BNP_val)
+# ClotAPTT_transform <- ClotAPTT
+# ClotAPTT_transform$APTT_val <- log10(ClotAPTT_transform$APTT_val)
+# ClotPT_transform <- ClotPT
+# ClotPT_transform$PT_val <- log10(ClotPT_transform$PT_val)
+# CO2_transform <- CO2
+# CO2_transform$CO2_val <- log10(CO2_transform$CO2_val)
+# O2_transform <- O2
+# O2_transform$O2_val <- log10(O2_transform$O2_val)
+# CRP_transform <- CRP
+# CRP_transform$CRP_val <- (CRP_transform$CRP_val)^(1/3)
+# DDM_transform <- DDM
+# DDM_transform$DDM_val <- log10(DDM_transform$DDM_val)
+# eGFR_transform <- eGFR
+# FBCLymph_transform <- FBCLymph
+# FBCLymph_transform$Lymphocytes <- log10(FBCLymph_transform$Lymphocytes)
+# FBCNeutr_transform <- FBCNeutr
+# FBCNeutr_transform$Neutrophils <- (FBCNeutr_transform$Neutrophils)^(1/3)
+# FBCNLR_transform <- FBCNLR
+# FBCNLR_transform$NLR_val <- log10(FBCNLR_transform$NLR_val)
+# FBCWCC_transform <- FBCWCC
+# FBCWCC_transform$WCC <- (FBCWCC_transform$WCC)^(1/3)
+# FER_transform <- FER
+# FER_transform$FER_val <- log10(FER_transform$FER_val)
+# fib_transform <- fib
+# Glucose_transform <- Glucose
+# Glucose_transform$Glucose_val <- log10(Glucose_transform$Glucose_val)
+# HB_transform <- HB
+# HBA1c_transform <- HBA1c
+# HBA1c_transform$HBA1c_val <- (HBA1c_transform$HBA1c_val)^(1/3)
+# LDH_transform <- LDH
+# LDH_transform$LDH_val <- log10(LDH_transform$LDH_val)
+# PCT_transform <- PCT
+# PCT_transform$PCT_val <- log10(PCT_transform$PCT_val)
+# PLT_transform <- PLT
+# PLT_transform$PLT_val <- sqrt(PLT_transform$PLT_val)
+# poctLAC_transform <- poctLAC
+# poctLAC_transform$poctLAC_val <- log10(poctLAC_transform$poctLAC_val)
+# poctpH_transform <- poctpH
+# trig_transform <- trig
+# trig_transform$trig_val <- log10(trig_transform$trig_val)
+# trop_transform <- trop
+# trop_transform$trop_val <- log10(trop_transform$trop_val)
 ```
 
-It seems BE contains outliers, a slight positive-skew, and positive kurtosis
-
-### BNP
-
-Log transformation:
+### Subset tables 
 
 ```{r}
-BNP_transform <- BNP
-BNP_transform$BNP_val <- log10(BNP_transform$BNP_val)
-
-```
-
-### Clot APTT
-
-```{r}
-ClotAPTT_transform <- ClotAPTT
-ClotAPTT_transform$APTT_val <- log10(ClotAPTT_transform$APTT_val)
-```
-
-### Clot PT
-
-```{r}
-ClotPT_transform <- ClotPT
-ClotPT_transform$PT_val <- log10(ClotPT_transform$PT_val)
-```
-
-Outliers, positive skew, positive kurtosis
-
-### CO2
-
-```{r}
-CO2_transform <- CO2
-CO2_transform$CO2_val <- log10(CO2_transform$CO2_val)
-```
-
-Positive skew
-
-### O2
-
-```{r}
-O2_transform <- O2
-O2_transform$O2_val <- log10(O2_transform$O2_val)
-```
-
-Positive skew, positive kurtosis, outliers
-
-### CRP
-
-```{r}
-CRP_transform <- CRP
-CRP_transform$CRP_val <- (CRP_transform$CRP_val)^(1/3)
-```
-
-Positive skew
-
-### DDM
-
-```{r}
-DDM_transform <- DDM
-DDM_transform$DDM_val <- log10(DDM_transform$DDM_val)
-```
-
-Outliers, positive skew
-
-### eGFR
-
-```{r}
-eGFR_transform <- eGFR
-```
-
-Negative skew, negative kurtosis?
-
-### FBC Lymphocytes
-
-```{r}
-FBCLymph_transform <- FBCLymph
-FBCLymph_transform$Lymphocytes <- log10(FBCLymph_transform$Lymphocytes)
-```
-
-Outliers, positive kurtosis, positive skew
-
-### Neutrophils
-
-```{r}
-FBCNeutr_transform <- FBCNeutr
-FBCNeutr_transform$Neutrophils <- (FBCNeutr_transform$Neutrophils)^(1/3)
-```
-
-### FBC NLR
-
-```{r}
-FBCNLR_transform <- FBCNLR
-FBCNLR_transform$NLR_val <- log10(FBCNLR_transform$NLR_val)
-```
-
-### WCC
-
-```{r}
-FBCWCC_transform <- FBCWCC
-FBCWCC_transform$WCC <- (FBCWCC_transform$WCC)^(1/3)
-```
-
-### FER
-
-```{r}
-FER_transform <- FER
-FER_transform$FER_val <- log10(FER_transform$FER_val)
-```
-
-### Fib
-
-```{r}
-fib_transform <- fib
-```
-
-May need to remove values at 0
-
-### Glucose
-
-```{r}
-Glucose_transform <- Glucose
-Glucose_transform$Glucose_val <- log10(Glucose_transform$Glucose_val)
-```
-
-### HB
-
-```{r}
-HB_transform <- HB
-```
-
-### HBA1c
-
-```{r}
-HBA1c_transform <- HBA1c
-HBA1c_transform$HBA1c_val <- (HBA1c_transform$HBA1c_val)^(1/3)
-```
-
-### LDH
-
-```{r}
-LDH_transform <- LDH
-LDH_transform$LDH_val <- log10(LDH_transform$LDH_val)
+BE = BE %>% select(uob_ID,date,BE_val)
+BNP = BNP %>% select(uob_ID,date,BNP_val)
+CRP = CRP %>% select(uob_ID,date,CRP_val)
+DDM = DDM %>% select(uob_ID,date,DDM_val)
+eGFR = eGFR %>% select(uob_ID,date,eGFR_val)
+FER = FER %>% select(uob_ID,date,FER_val)
+fib = fib %>% select(uob_ID,date,fib_val)
+Glucose = Glucose %>% select(uob_ID,date,Glucose_val)
+HB = HB %>% select(uob_ID,date,HB_val)
+ClotAPTT = ClotAPTT %>% select(uob_ID,date,APTT_val)
+ClotPT = ClotPT %>% select(uob_ID,date,PT_val)
+CO2 = CO2 %>% select(uob_ID,date,CO2_val)
+O2 = O2 %>% select(uob_ID,date,O2_val)
+FBCLymph = FBCLymph %>% select(uob_ID,date,Lymphocytes)
+FBCNeutr = FBCNeutr %>% select(uob_ID,date,Neutrophils)
+FBCNLR = FBCNLR %>% select(uob_ID,date,NLR_val)
+FBCWCC = FBCWCC %>% select(uob_ID,date,WCC)
+HBA1c = HBA1c %>% select(uob_ID,date,HBA1c_val)
+poctpH = poctpH %>% select(uob_ID,date,poctpH_val)
+poctpH$date = as.Date(poctpH$date, format="%d/%m/%Y")
+poctLAC = poctLAC %>% select(uob_ID,date,poctLAC_val)
+LDH = LDH %>% select(uob_ID,date,LDH_val)
+PCT = PCT %>% select(uob_ID,date,PCT_val)
+PLT = PLT %>% select(uob_ID,date,PLT_val)
+trig = trig %>% select(uob_ID,date,trig_val)
+trop = trop %>% select(uob_ID,date,trop_val)
 
 ```
 
-### PCT
 
+### Calculate median for each patient-date
 ```{r}
-PCT_transform <- PCT
-PCT_transform$PCT_val <- log10(PCT_transform$PCT_val)
-```
+# Group  by both patient and date. For each set of values for a specific date and ID, find the median. This will lead to a table with one row per patient-date
+BE <- BE %>% group_by(uob_ID,date) %>% summarize(BE_val = median(BE_val))
+BNP <- BNP %>% group_by(uob_ID,date) %>% summarize(BNP_val = median(BNP_val))
+ClotAPTT <- ClotAPTT %>% group_by(uob_ID,date) %>% summarize(APTT_val = median(APTT_val))
+ClotPT <- ClotPT %>% group_by(uob_ID,date) %>% summarize(PT_val = median(PT_val))
+CO2 <- CO2 %>% group_by(uob_ID,date) %>% summarize(CO2_val = median(CO2_val))
+CRP <- CRP %>% group_by(uob_ID,date) %>% summarize(CRP_val = median(CRP_val))
+DDM <- DDM %>% group_by(uob_ID,date) %>% summarize(DDM_val = median(DDM_val))
+eGFR <- eGFR %>% group_by(uob_ID,date) %>% summarize(eGFR_val = median(eGFR_val))
+FBCLymph <- FBCLymph %>% group_by(uob_ID,date) %>% summarize(Lymphocytes = median(Lymphocytes))
+FBCNeutr <- FBCNeutr %>% group_by(uob_ID,date) %>% summarize(Neutrophils = median(Neutrophils))
+FBCNLR <- FBCNLR %>% group_by(uob_ID,date) %>% summarize(NLR_val = median(NLR_val))
+FBCWCC <- FBCWCC %>% group_by(uob_ID,date) %>% summarize(WCC = median(WCC))
+FER <- FER %>% group_by(uob_ID,date) %>% summarize(FER_val = median(FER_val))
+fib <- fib %>% group_by(uob_ID,date) %>% summarize(fib_val = median(fib_val))
+Glucose <- Glucose %>% group_by(uob_ID,date) %>% summarize(Glucose_val = median(Glucose_val))
+HB <- HB %>% group_by(uob_ID,date) %>% summarize(HB_val = median(HB_val))
+HBA1c <- HBA1c %>% group_by(uob_ID,date) %>% summarize(HBA1c_val = median(HBA1c_val))
+LDH <- LDH %>% group_by(uob_ID,date) %>% summarize(LDH_val = median(LDH_val))
+O2 <- O2 %>% group_by(uob_ID,date) %>% summarize(O2_val = median(O2_val))
+PCT <- PCT %>% group_by(uob_ID,date) %>% summarize(PCT_val = median(PCT_val))
+PLT <- PLT %>% group_by(uob_ID,date) %>% summarize(PLT_val = median(PLT_val))
+poctLAC <- poctLAC %>% group_by(uob_ID,date) %>% summarize(poctLAC_val = median(poctLAC_val))
+poctpH <- poctpH %>% group_by(uob_ID,date) %>% summarize(poctpH_val = median(poctpH_val))
+trig <- trig %>% group_by(uob_ID,date) %>% summarize(trig_val = median(trig_val))
+trop <- trop %>% group_by(uob_ID,date) %>% summarize(trop_val = median(trop_val))
 
-### PLT
-
-```{r}
-PLT_transform <- PLT
-PLT_transform$PLT_val <- sqrt(PLT_transform$PLT_val)
-```
-
-### poctLAC
-
-```{r}
-poctLAC_transform <- poctLAC
-poctLAC_transform$poctLAC_val <- log10(poctLAC_transform$poctLAC_val)
-```
-
-### poctpH
-
-```{r}
-poctpH_transform <- poctpH
-```
-
-### Trig
-
-```{r}
-trig_transform <- trig
-trig_transform$trig_val <- log10(trig_transform$trig_val)
-```
-
-### Trop
-
-```{r}
-trop_transform <- trop
-trop_transform$trop_val <- log10(trop_transform$trop_val)
-```
-
-### Rescale tables and subset 
-
-```{r}
-BE_transform$BE_val <- rescale(BE_transform$BE_val)
-BE_transform = BE_transform %>% select(uob_ID,date,BE_val)
-
-
-BNP_transform$BNP_val <- rescale(BNP_transform$BNP_val)
-BNP_transform = BNP_transform %>% select(uob_ID,date,BNP_val)
-
-
-CRP_transform$CRP_val <- rescale(CRP_transform$CRP_val)
-CRP_transform = CRP_transform %>% select(uob_ID,date,CRP_val)
-
-
-DDM_transform$DDM_val <- rescale(DDM_transform$DDM_val)
-DDM_transform = DDM_transform %>% select(uob_ID,date,DDM_val)
-
-
-eGFR_transform$eGFR_val <- rescale(eGFR_transform$eGFR_val)
-eGFR_transform = eGFR_transform %>% select(uob_ID,date,eGFR_val)
-
-
-FER_transform$FER_val <- rescale(FER_transform$FER_val)
-FER_transform = FER_transform %>% select(uob_ID,date,FER_val)
-
-
-fib_transform$fib_val <- rescale(fib_transform$fib_val)
-fib_transform = fib_transform %>% select(uob_ID,date,fib_val)
-
-
-Glucose_transform$Glucose_val <- rescale(Glucose_transform$Glucose_val)
-Glucose_transform = Glucose_transform %>% select(uob_ID,date,Glucose_val)
-
-
-HB_transform$HB_val <- rescale(HB_transform$HB_val)
-HB_transform = HB_transform %>% select(uob_ID,date,HB_val)
-
-
-ClotAPTT_transform$APTT_val <- rescale(ClotAPTT_transform$APTT_val)
-ClotAPTT_transform = ClotAPTT_transform %>% select(uob_ID,date,APTT_val)
-
-
-ClotPT_transform$PT_val <- rescale(ClotPT_transform$PT_val)
-ClotPT_transform = ClotPT_transform %>% select(uob_ID,date,PT_val)
-
-
-CO2_transform$CO2_val <- rescale(CO2_transform$CO2_val)
-CO2_transform = CO2_transform %>% select(uob_ID,date,CO2_val)
-
-
-O2_transform$O2_val <- rescale(O2_transform$O2_val)
-O2_transform = O2_transform %>% select(uob_ID,date,O2_val)
-
-
-FBCLymph_transform$Lymphocytes <- rescale(FBCLymph_transform$Lymphocytes)
-FBCLymph_transform = FBCLymph_transform %>% select(uob_ID,date,Lymphocytes)
-
-
-FBCNeutr_transform$Neutrophils <- rescale(FBCNeutr_transform$Neutrophils)
-FBCNeutr_transform = FBCNeutr_transform %>% select(uob_ID,date,Neutrophils)
-
-
-FBCNLR_transform$NLR_val <- rescale(FBCNLR_transform$NLR_val)
-FBCNLR_transform = FBCNLR_transform %>% select(uob_ID,date,NLR_val)
-
-
-FBCWCC_transform$WCC <- rescale(FBCWCC_transform$WCC)
-FBCWCC_transform = FBCWCC_transform %>% select(uob_ID,date,WCC)
-
-
-HBA1c_transform$HBA1c_val <- rescale(HBA1c_transform$HBA1c_val)
-HBA1c_transform = HBA1c_transform %>% select(uob_ID,date,HBA1c_val)
-
-
-poctpH_transform$poctpH_val <- rescale(poctpH_transform$poctpH_val)
-poctpH_transform = poctpH_transform %>% select(uob_ID,date,poctpH_val)
-poctpH_transform$date = as.Date(poctpH$date, format="%d/%m/%Y")
-
-
-poctLAC_transform$poctLAC_val <- rescale(poctLAC_transform$poctLAC_val)
-poctLAC_transform = poctLAC_transform %>% select(uob_ID,date,poctLAC_val)
-
-
-LDH_transform$LDH_val <- rescale(LDH_transform$LDH_val)
-LDH_transform = LDH_transform %>% select(uob_ID,date,LDH_val)
-
-
-PCT_transform$PCT_val <- rescale(PCT_transform$PCT_val)
-PCT_transform = PCT_transform %>% select(uob_ID,date,PCT_val)
-
-
-PLT_transform$PLT_val <- rescale(PLT_transform$PLT_val)
-PLT_transform = PLT_transform %>% select(uob_ID,date,PLT_val)
-
-
-trig_transform$trig_val <- rescale(trig_transform$trig_val)
-trig_transform = trig_transform %>% select(uob_ID,date,trig_val)
-
-
-trop_transform$trop_val <- rescale(trop_transform$trop_val)
-trop_transform = trop_transform %>% select(uob_ID,date,trop_val)
 
 
 ```
 
-### Merge tables
 
-```{r}
-data_merge1 <- merge(BE_transform,
-                     BNP_transform,
-                     ClotAPTT_transform,
-                     ClotPT_transform,
-                     CO2_transform,
-                     CRP_transform,
-                     DDM_transform,
-                     eGFR_transform,
-                     FBCLymph_transform,
-                     FBCNeutr_transform,
-                     FBCNLR_transform,
-                     FBCWCC_transform,
-                     FER_transform,
-                     fib_transform,
-                     Glucose_transform,
-                     HB_transform,
-                     HBA1c_transform,
-                     LDH_transform,
-                     O2_transform,
-                     PCT_transform,
-                     PLT_transform,
-                     poctLAC_transform,
-                     poctpH_transform,
-                     trig_transform,
-                     trop_transform,
-                     by = c("uob_ID","date"))
-```
+
+
+### Put data into long format
+- Each row is one time point per subject
+- Each column is one variable
+- Problem here is that there are too many measurements on one day. For vitals, we are just looking at one date, despite there being many measurements each day. For example, 30 measurements on one day for one patient. So that patient will have 30 dates. Next time a variable is added with say 30 dates, each of those 30 dates will also be populated with more. Either need:
+- To make allowances for multiple readings per day
+- Increase granularity of measurements (for O2, CO2 etc). Only trouble with this is that there are unlikely to be shared times for each patient.
+- Could summarise reading for each day. Mean? 
+- Could we look at readings per "patient-day" for each variable? 
 
 
 ```{r}
-total <- rbind(BE_transform,BNP_transform,CRP_transform,DDM_transform,eGFR_transform,FER_transform,fib_transform,Glucose_transform,HB_transform,ClotAPTT_transform,ClotPT_transform,CO2_transform,O2_transform,FBCLymph_transform,FBCNeutr_transform,FBCNLR_transform,FBCWCC_transform,HBA1c_transform,poctpH_transform,poctLAC_transform,LDH_transform,PCT_transform,PLT_transform,trig_transform,trop_transform)
-total$Measure <- factor(total$Measure, levels = c("BNP","LDH","HBA1c","trig","trop","DDM","FER","PCT","fib","Glucose","PT","APTT","PLT","CRP","eGFR","poctLAC","poctpH","O2","CO2","WCC","Lymphocytes","Neutrophils","NLR","HB","BE"))
+
+labmarcs_long <- BE %>% full_join(BNP, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(ClotAPTT, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(ClotPT, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(CO2, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(CRP, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(DDM, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(eGFR, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(FBCLymph, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(FBCNeutr, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(FBCNLR, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(FBCWCC, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(FER, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(fib, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(Glucose, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(HB, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(HBA1c, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(LDH, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(O2, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(PCT, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(PLT, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(poctLAC, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(poctpH, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(trig, by=c("uob_ID","date"))
+labmarcs_long <- labmarcs_long %>% full_join(trop, by=c("uob_ID","date"))
 ```
+
+### Merge with characteristics
+
+```{r}
+labmarcs_long = labmarcs_long %>% 
+  rename(
+    ID = uob_ID
+  )
+labmarcs_long <- labmarcs_long %>% full_join(total, by=c("ID"))
+```
+
+### Add length of stay column
+- For days since covid +ve test
+- For days since admission
+```{r}
+# Days since +ve test
+labmarcs_long <- labmarcs_long %>% mutate(length_of_stay_pos = as.numeric(difftime(date,positiveDate,units="days")))
+
+# Days since admission
+labmarcs_long <- labmarcs_long %>% mutate(length_of_stay_adm = as.numeric(difftime(date,admissionDate,units="days")))
+
+```
+
+### Subset data based on length of stay
+```{r}
+# Remove irrelevant variables 
+labmarcs_missing <- labmarcs_long %>% select(ID,BE_val,BNP_val,APTT_val,PT_val,PT_val,CO2_val,CRP_val,DDM_val,eGFR_val,Lymphocytes,Neutrophils,NLR_val,WCC,FER_val,fib_val,Glucose_val,HB_val,HBA1c_val,LDH_val,O2_val,PCT_val,PLT_val,poctLAC_val,poctpH_val,trig_val,trop_val,length_of_stay_adm,length_of_stay_pos)
+
+
+# 1 day since positive 
+labmarcs_1day_pos <- labmarcs_missing %>% filter(between(length_of_stay_pos,0,0))
+labmarcs_1day_pos <- labmarcs_1day_pos %>% select(ID,length_of_stay_pos,BE_val,BNP_val,APTT_val,PT_val,PT_val,CO2_val,CRP_val,DDM_val,eGFR_val,Lymphocytes,Neutrophils,NLR_val,WCC,FER_val,fib_val,Glucose_val,HB_val,HBA1c_val,LDH_val,O2_val,PCT_val,PLT_val,poctLAC_val,poctpH_val,trig_val,trop_val)
+
+# 3 days since positive
+labmarcs_3day_pos <- labmarcs_missing %>% filter(between(length_of_stay_pos,0,2))
+labmarcs_3day_pos <- labmarcs_3day_pos %>% select(ID,length_of_stay_pos,BE_val,BNP_val,APTT_val,PT_val,PT_val,CO2_val,CRP_val,DDM_val,eGFR_val,Lymphocytes,Neutrophils,NLR_val,WCC,FER_val,fib_val,Glucose_val,HB_val,HBA1c_val,LDH_val,O2_val,PCT_val,PLT_val,poctLAC_val,poctpH_val,trig_val,trop_val)
+
+# 5 days since positive 
+labmarcs_5day_pos <- labmarcs_missing %>% filter(between(length_of_stay_pos,0,4))
+labmarcs_5day_pos <- labmarcs_5day_pos %>% select(ID,length_of_stay_pos,BE_val,BNP_val,APTT_val,PT_val,PT_val,CO2_val,CRP_val,DDM_val,eGFR_val,Lymphocytes,Neutrophils,NLR_val,WCC,FER_val,fib_val,Glucose_val,HB_val,HBA1c_val,LDH_val,O2_val,PCT_val,PLT_val,poctLAC_val,poctpH_val,trig_val,trop_val)
+
+# 7 days since positive
+labmarcs_7day_pos <- labmarcs_missing %>% filter(between(length_of_stay_pos,0,6))
+labmarcs_7day_pos <- labmarcs_7day_pos %>% select(ID,length_of_stay_pos,BE_val,BNP_val,APTT_val,PT_val,PT_val,CO2_val,CRP_val,DDM_val,eGFR_val,Lymphocytes,Neutrophils,NLR_val,WCC,FER_val,fib_val,Glucose_val,HB_val,HBA1c_val,LDH_val,O2_val,PCT_val,PLT_val,poctLAC_val,poctpH_val,trig_val,trop_val)
+
+# 14 days since positive
+labmarcs_14day_pos <- labmarcs_missing %>% filter(between(length_of_stay_pos,0,13))
+labmarcs_14day_pos <- labmarcs_14day_pos %>% select(ID,length_of_stay_pos,BE_val,BNP_val,APTT_val,PT_val,PT_val,CO2_val,CRP_val,DDM_val,eGFR_val,Lymphocytes,Neutrophils,NLR_val,WCC,FER_val,fib_val,Glucose_val,HB_val,HBA1c_val,LDH_val,O2_val,PCT_val,PLT_val,poctLAC_val,poctpH_val,trig_val,trop_val)
+
+
+# 14 days since admission (purpose is to assess pattern of measurements)
+labmarcs_14day_adm <- labmarcs_missing %>% filter(between(length_of_stay_adm,0,13))
+labmarcs_14day_adm <- labmarcs_14day_adm %>% select(ID,length_of_stay_adm,BE_val,BNP_val,APTT_val,PT_val,PT_val,CO2_val,CRP_val,DDM_val,eGFR_val,Lymphocytes,Neutrophils,NLR_val,WCC,FER_val,fib_val,Glucose_val,HB_val,HBA1c_val,LDH_val,O2_val,PCT_val,PLT_val,poctLAC_val,poctpH_val,trig_val,trop_val)
+
+# Drop irrelevant column
+
+# Write dataframes to csv
+write.csv(labmarcs_1day_pos, "imp_input/labmarcs_1day_pos.csv")
+write.csv(labmarcs_3day_pos, "imp_input/labmarcs_3day_pos.csv")
+write.csv(labmarcs_5day_pos, "imp_input/labmarcs_5day_pos.csv")
+write.csv(labmarcs_7day_pos, "imp_input/labmarcs_7day_pos.csv")
+write.csv(labmarcs_14day_pos, "imp_input/labmarcs_14day_pos.csv")
+
+```
+
+
+### Visualise missingness
+```{r}
+
+
+
+# Missingness for admission
+labmarcs_14day_adm$length_of_stay_adm <- as.factor(labmarcs_14day_adm$length_of_stay_adm)
+gg_miss_fct(labmarcs_14day_adm,length_of_stay_adm)
+
+# Missingness for covid positive date
+labmarcs_3day_pos$length_of_stay_pos <- as.factor(labmarcs_3day_pos$length_of_stay_pos)
+gg_miss_fct(labmarcs_3day_pos,length_of_stay_pos)
+
+labmarcs_5day_pos$length_of_stay_pos <- as.factor(labmarcs_5day_pos$length_of_stay_pos)
+gg_miss_fct(labmarcs_5day_pos,length_of_stay_pos)
+
+labmarcs_7day_pos$length_of_stay_pos <- as.factor(labmarcs_7day_pos$length_of_stay_pos)
+gg_miss_fct(labmarcs_7day_pos,length_of_stay_pos)
+
+labmarcs_14day_pos$length_of_stay_pos <- as.factor(labmarcs_14day_pos$length_of_stay_pos)
+gg_miss_fct(labmarcs_14day_pos,length_of_stay_pos)
+```
+
+### Other missingness plots
+```{r}
+gg_miss_upset(labmarcs_14day_adm, order.by = "freq", nsets=29, nintersects=50)
+```
+
+
+
+### Put data into wide format
+- Each row is one patient
+- Each column one time point per variable
+
+```{r}
+# data_merge1 <- rbind(BE_transform,
+#                      BNP_transform,
+#                      ClotAPTT_transform,
+#                      ClotPT_transform,
+#                      CO2_transform,
+#                      CRP_transform,
+#                      DDM_transform,
+#                      eGFR_transform,
+#                      FBCLymph_transform,
+#                      FBCNeutr_transform,
+#                      FBCNLR_transform,
+#                      FBCWCC_transform,
+#                      FER_transform,
+#                      fib_transform,
+#                      Glucose_transform,
+#                      HB_transform,
+#                      HBA1c_transform,
+#                      LDH_transform,
+#                      O2_transform,
+#                      PCT_transform,
+#                      PLT_transform,
+#                      poctLAC_transform,
+#                      poctpH_transform,
+#                      trig_transform,
+#                      trop_transform,
+#                      by = c("uob_ID","date"))
+
+
+
+```
+
 
 
