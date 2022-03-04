@@ -13,6 +13,7 @@ library(ggplot2)
 library(finalfit)
 library(data.table)
 
+library('Hmisc')
 # Global variables
 # BatchAnalysisOn==1 prevents the dateRange and readingwanted variables from
 # being overwritten, but the option to turn this off and run this script without
@@ -32,7 +33,7 @@ if (!exists('data_path')) {
 #Set needed variables if we are not running LABMARCS_Analysis_Batch.R
 if (!exists('BatchAnalysisOn')) { 
   dateRange <- 3 # 1, 3, 5, 7, 14 days
-  readingwanted <- 0 # 0-worst, 1-first, 2-mean
+  readingwanted <- 1 # 0-worst, 1-first, 2-mean
 }
 
 if (readingwanted == 0) {
@@ -148,7 +149,10 @@ totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format = "%d/
 
 
 ## Demographics Table
-dem <- read.csv(file("masterlist.csv"))
+#Note master list has some IDs incorrectly saved should be 4 character code but
+#export sometimes inteprets as scientific notation
+
+dem <- read.csv(file("masterlist.update.csv"))
 dem <- dem %>%
   rename(ID = uob_ID, Age = agecat) %>%
   distinct(ID, .keep_all = TRUE) %>%
@@ -166,6 +170,12 @@ total <- total %>% filter(!is.na(dischargeDate))
 
 # Age less than 18
 # Remove those less than 18
+# Age (Age)
+# Age grouped, make into average # NEED TO GET WORKING FOR NEW AGE DATA
+total$Age[total$Age == "20-21"] <- "20.5"
+total$Age[total$Age == "99-102"] <- "100.5"
+
+total$Age <- as.numeric(total$Age)
 total <- total %>% filter(Age >= 18)
 
 ### Those that have died
@@ -213,11 +223,12 @@ CovidCT <- CovidCT %>% dplyr::select(ID,positiveDate) %>% distinct()
 
 total <- left_join(total,CovidCT)
 
-# Number of people who have multiple admissions is 54 at this point
-# Not sure how to treat but original assumption was to only use the original
-# admission date info (so by default death is excluded )
+#exclude people without covid-19 test
+total <- total[!is.na(total$positiveDate),]
 
-# Only keep first admission
+
+# Number of people who have multiple admissions is 48 at this point
+# All of them have covid before or during first stay so only use first stay
 ctr <- 0
 multi_admit_ids <- c()
 for (id in unique(total$ID)) {
@@ -225,25 +236,80 @@ for (id in unique(total$ID)) {
   if (sum(id_match) > 1) {
     ctr <- ctr + 1
     multi_admit_ids[ctr] <- id
+    #if more than one copy the first entry onto all others
     total[id_match,] <- total[id_match,][1,]
   }
 }
- 
-for (id in multi_admit_ids) {
-  id_match <- total$ID == id
-  #print(total[id_match,])
+total <- unique(total)
+
+#------Establish Critical Date-----
+#need to step through and choose the critical date for patients. if they are in 
+#hospital its on covid positive. if they are not in hospital its when they are admitted
+critDate = data.frame()
+
+for (i in 1:dim(total)[1]) {
+
+  pos_after_admin_num = total[i,"positiveDate"] - total[i,"admissionDate"] 
+  pos_on_admin = pos_after_admin_num == 0
+  pos_after_admin = pos_after_admin_num >= 0
+    
+  pos_before_discharge_num = total[i,"positiveDate"] - total[i,"dischargeDate"]  
+  pos_on_discharge = pos_before_discharge_num == 0
+  pos_before_discharge = pos_before_discharge_num < 0
+  
+
+  if (pos_on_admin & !pos_on_discharge) {
+    #print('Covid on admit; use admit date/pos date')
+    critDate[i,1] = total[i,"admissionDate"]
+    critDate[i,2] = 1
+    
+  } else if (pos_after_admin & pos_before_discharge) {
+      #print('Covid while admitted,; use pos date')
+      #print(sprintf('pos to discharge time: %d', pos_before_discharge_num[[1]]))
+      critDate[i,1] = total[i,"positiveDate"]
+      critDate[i,2] = 2
+      
+  } else if (!pos_after_admin & pos_before_discharge) {
+    #print('Covid before admit; use admit date')
+    critDate[i,1] = total[i,"admissionDate"]
+    critDate[i,2] = 3
+
+      } else if (pos_on_admin & pos_on_discharge) {
+    #print('Covid on admit and discharge same day')
+    critDate[i,1] = total[i,"admissionDate"]
+    critDate[i,2] = 4
+    
+  } else {
+      #print('Already in hospital, covid positive & discharge on same day - Exclude')
+      #print(sprintf('%s, %s, %s',total[i,"admissionDate"],
+      #             total[i,"positiveDate"],total[i,"dischargeDate"]))
+      #print(sprintf('%d, %d, %d, %d',pos_after_admin_num[[1]],pos_after_admin[[1]],
+      #             pos_before_discharge_num[[1]],pos_before_discharge[[1]] ))
+      critDate[i,1] = total[i,"positiveDate"]
+      critDate[i,2] = 5
+  }
+
+  print('---------------------------------------------------------------------')
 }
 
-total <- unique(total)
+#add new critical date column
+total['CriticalDate'] = critDate[,1]
+total['CriticalDateType'] = critDate[,2]
+
+#exclude cases where already admitted and covid was detected on day of discharge 
+total = total[ critDate[,2] != 5, ]
+
+#define 
+ids_train = total[total$Site != 'Weston','ID']
+ids_test = total[total$Site == 'Weston','ID']
+
 
 
 ### -- Load variable data ---
-# Note: Original code has a lot of redundant
-# code at 2000+ lines. It can be compressed & efficiently
-# written or even better with function/class and avoid
-# code repetition. 
-# Will try to chip away and make more efficient, but
-# for now assume it was written correctly 
+# Note: Code below is very repetitive - needs to compressed & efficiently
+# written perhaps with function/class - note many idiosyncrasies across
+# the biomarkers though, so for now keep as is
+
 
 #### BE - Bicarbonate Excess
 BE <- read.csv(file("BE.csv"))
@@ -269,10 +335,11 @@ for (id in (unique(commonIDs))) {
   # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID == id]
+  idPositive = total$CriticalDate[total$ID == id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = BE[BE$ID == id,][(idDates >= idPositive & idDates < 
                                    (idPositive + dateRange)),]$BE_val
+  
   # If all_values contains any values, then proceed
   if (length(!is.na(all_values)) > 0 & !is.na(idPositive)) {
     if (readingwanted == 0) {
@@ -303,8 +370,9 @@ BE <- BE2
 rm(BE2)
 
 
+
 #### UREA
-Urea <- read.csv(file("Urea_Export.2021.13.10.csv"))
+Urea <- read.csv(file("Urea.csv"))
 Urea$Date.Booked.In = as.Date(Urea$Date.Booked.In, format = "%d/%m/%Y")
 Urea = Urea %>% 
   rename(
@@ -327,7 +395,7 @@ for (id in (unique(commonIDs))) {
   # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID == id]
+  idPositive = total$CriticalDate[total$ID == id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = Urea[Urea$ID == id,][(idDates >= idPositive & idDates < 
                                    (idPositive + dateRange)),]$Urea_val
@@ -362,9 +430,6 @@ rm(Urea2)
 
 
 
-
-
-
 #### BNP - B-type natriuretic peptide
 BNP <- read.csv(file("BNP.csv"))
 BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format = "%d/%m/%Y")
@@ -391,7 +456,7 @@ for (id in unique(commonIDs)) {
   # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID == id][1]
+  idPositive = total$CriticalDate[total$ID == id][1]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = BNP[BNP$ID == id,][(idDates >= idPositive & idDates < 
                                    (idPositive + dateRange)),]$BNP_val
@@ -502,6 +567,8 @@ for (id in unique(commonIDs)) {
 BNP <- BNP2
 rm(BNP2)
 
+
+
 #### CRP - C-Reactive Protein
 CRP <- read.csv(file("CRP.csv"))
 CRP$Date.Booked.In = as.Date(CRP$Date.Booked.In, format = "%d/%m/%Y")
@@ -527,7 +594,7 @@ for (id in (unique(commonIDs))){
   # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = CRP[CRP$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$CRP_val
   # If all_values contains any values, then proceed
@@ -558,6 +625,8 @@ for (id in (unique(commonIDs))){
 
 CRP <- CRP2
 rm(CRP2)
+
+
 
 #### DDM - D-Dimer 
 DDM <- read.csv(file("DDM.csv"))
@@ -592,7 +661,7 @@ for (id in unique(commonIDs)) {
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID == id][1]
+  idPositive = total$CriticalDate[total$ID == id][1]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = DDM[DDM$ID == id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$DDM_val
   # If all_values contains any values, then proceed
@@ -662,6 +731,8 @@ for (id in unique(commonIDs)) {
 DDM <- DDM2
 rm(DDM2)
 
+
+
 #### eGFR - Estimated Glomerular Filtration Rate
 eGFR <- read.csv(file("eGFR.csv"))
 eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
@@ -688,7 +759,7 @@ for (id in (unique(commonIDs))) {
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID == id]
+  idPositive = total$CriticalDate[total$ID == id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = eGFR[eGFR$ID == id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$eGFR_val
   
@@ -718,6 +789,8 @@ for (id in (unique(commonIDs))) {
 
 eGFR <- eGFR2
 rm(eGFR2)
+
+
 
 #### FER - Ferritin
 FER <- read.csv(file("FER.csv"))
@@ -756,7 +829,7 @@ for (id in unique(commonIDs)){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id][1]
+  idPositive = total$CriticalDate[total$ID==id][1]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = FER[FER$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$FER_val
   # If all_values contains any values, then proceed
@@ -796,6 +869,7 @@ FER <- FER2
 rm(FER2)
 
 
+
 #### Fib - Fibrinogen
 fib <- read.csv(file("fib.csv"))
 fib$Date.Booked.In = as.Date(fib$Date.Booked.In, format="%d/%m/%Y")
@@ -829,7 +903,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = fib[fib$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$fib_val
   # If all_values contains any values, then proceed
@@ -858,6 +932,8 @@ for (id in (unique(commonIDs))){
 fib <- fib2
 rm(fib2)
 
+
+
 #### Glucose
 Glucose <- read.csv(file("Glucose.csv"))
 Glucose$Date.Booked.In = as.Date(Glucose$Date.Booked.In, format="%d/%m/%Y")
@@ -883,7 +959,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = Glucose[Glucose$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$Glucose_val
   # If all_values contains any values, then proceed
@@ -914,6 +990,8 @@ for (id in (unique(commonIDs))){
 
 Glucose <- Glucose2
 rm(Glucose2)
+
+
 
 #### HB - Hemoglobin
 HB <- read.csv(file("HB.csv"))
@@ -951,7 +1029,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = HB[HB$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$HB_val
   
@@ -981,6 +1059,8 @@ for (id in (unique(commonIDs))){
 HB <- HB2
 rm(HB2)
 
+
+
 #### HBA1c - glycated haemoglobin
 HBA1c <- read.csv(file("HBA1c.csv"))
 HBA1c$Date.Booked.In = as.Date(HBA1c$Date.Booked.In, format="%d/%m/%Y")
@@ -1006,7 +1086,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = HBA1c[HBA1c$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$HBA1c_val
   # If all_values contains any values, then proceed
@@ -1035,6 +1115,8 @@ for (id in (unique(commonIDs))){
 
 HBA1c <- HBA1c2
 rm(HBA1c2)
+
+
 
 #### LDH - Lactate dehydrogenase
 LDH <- read.csv(file("LDH.csv"))
@@ -1069,7 +1151,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = LDH[LDH$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$LDH_val
 
@@ -1098,6 +1180,8 @@ for (id in (unique(commonIDs))){
 LDH <- LDH2
 rm(LDH2)
 
+
+
 #### PCT - Procalcitonin 
 PCT <- read.csv(file("PCT.csv"))
 PCT$Date.Booked.In = as.Date(PCT$Date.Booked.In, format="%d/%m/%Y")
@@ -1123,7 +1207,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = PCT[PCT$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$PCT_val
 
@@ -1153,6 +1237,8 @@ for (id in (unique(commonIDs))){
 
 PCT <- PCT2
 rm(PCT2)
+
+
 
 #### PLT - Platelet Count
 PLT <- read.csv(file("PLT.csv"))
@@ -1187,7 +1273,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = PLT[PLT$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$PLT_val
 
@@ -1216,6 +1302,8 @@ for (id in (unique(commonIDs))){
 PLT <- PLT2
 rm(PLT2)
 
+
+
 #### Trig - Triglycerides
 trig <- read.csv(file("trig.csv"))
 trig$Date.Booked.In = as.Date(trig$Date.Booked.In, format = "%d/%m/%Y")
@@ -1241,7 +1329,7 @@ for (id in (unique(commonIDs))) {
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID == id]
+  idPositive = total$CriticalDate[total$ID == id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = trig[trig$ID == id,][(idDates >= idPositive & idDates < 
                                        (idPositive + dateRange)),]$trig_val
@@ -1300,7 +1388,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = trop[trop$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$trop_val
 
@@ -1332,6 +1420,8 @@ trop <- trop2
 rm(trop2)
 
 #### FBC - Full Blood Count
+#Info on White Blood Cells, Neutrophils & Lymphocytes
+
 FBC <- read.csv(file("FBC.csv"))
 FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
 FBC = FBC %>% 
@@ -1340,6 +1430,7 @@ FBC = FBC %>%
      ID = uob_ID,
   )
 
+#Lymphocytes
 FBCLymph = FBC %>% dplyr::select(ID,date,Result.Lymphocytes)
 FBCLymph = FBCLymph %>% 
   rename(
@@ -1367,7 +1458,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = FBCLymph[FBCLymph$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$Lymphocytes
 
@@ -1400,6 +1491,10 @@ for (id in (unique(commonIDs))){
 FBCLymph <- FBCLymph2
 rm(FBCLymph2)
 
+
+
+
+#Neutrophils 
 FBCNeutr = FBC %>% dplyr::select(ID,date,Result.Neutrophils)
 FBCNeutr = FBCNeutr %>% 
   rename(
@@ -1421,13 +1516,17 @@ Neutr_comparator <- function(v){
   return(value)
 }
 
+#Save individual readings for Manuscript Plot
+FBCNeutr_train_ls = list()
+FBCNeutr_test_ls = list()
+
 for (id in (unique(commonIDs))){
   # Get all dates for this ID and variable
   idDates = FBCNeutr[FBCNeutr$ID==id,]$date
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = FBCNeutr[FBCNeutr$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$Neutrophils
 
@@ -1450,13 +1549,67 @@ for (id in (unique(commonIDs))){
     value = Neutr_comparator(average)
     }
     # Add this 
-    FBCNeutr2 <- FBCNeutr2 %>% add_row(ID=id,Neutrophils=value)
+    FBCNeutr2 <- FBCNeutr2 %>% add_row(ID = id,Neutrophils = value)
   }
+  
+  #Manuscript Plot - Filter by ids_train or ids_test to make selective histogram
+  if (sum(id == ids_train) == 1) {
+    #Append individual readings for Manuscript Plot
+    FBCNeutr_train_ls = append(FBCNeutr_train_ls,all_values)
+  } else {
+    FBCNeutr_test_ls = append(FBCNeutr_test_ls,all_values)
+  }
+  
 }
 
 FBCNeutr <- FBCNeutr2
 rm(FBCNeutr2)
 
+
+#----Example plot for Paper
+#Note FBCNeutr_train/test _ls is in loop above to save values after filtering patients
+
+#FBCNeutr_ls = FBCNeutr_train_ls #generates training data histogram
+#label_txt = 'Training Data'
+#ypl = 60
+#xl = ''
+
+FBCNeutr_ls = FBCNeutr_test_ls #generates testing data histogram
+label_txt = 'Validation Data'
+ypl = 30
+xl = 'Neutrophil Count x 10^9/L'
+
+#First convert to tibble and plot histogram outside loop
+FBCNeutr_df = tibble(Neutrophil = sapply(FBCNeutr_ls,c))
+
+#Example Biomarker Plot for Paper
+spl = 4
+qplot(data = FBCNeutr_df, x = `Neutrophil`, geom = 'histogram',  fill = I("lightblue"), 
+      col = I("darkblue"), binwidth = 0.5, xlab = xl, ylab = 'Frequency') +
+  geom_histogram(color = "darkblue", fill = "lightblue", binwidth = 0.5) + 
+  geom_vline(xintercept = 0.5,colour = "red") +
+  geom_vline(xintercept = 1,colour = "red") +
+  geom_vline(xintercept = 2,colour = "red") +
+  geom_vline(xintercept = 7.5,colour = "red") +
+  annotate("text", label = "Severe", x = 0.15, y = ypl, size = spl, 
+           colour = "black", angle = 90, hjust = 0) +
+  annotate("text", label = "Moderate", x = .75, y = ypl, size = spl, 
+           colour = "black", angle = 90, hjust = 0) +
+  annotate("text", label = "Mild", x = 1.5, y = ypl, size = spl, 
+           colour = "black", angle = 90, hjust = 0) +
+  annotate("label", label = "Normal", x = 5, y = ypl, size = spl, 
+           colour = "black") +
+  annotate("text", label = "Severe", x = 10, y = ypl, size = spl, 
+           colour = "black", hjust = 0) +
+  theme(text = element_text(size = 20)) + coord_cartesian(xlim = c(0, 35))
+
+ggsave(paste(work_path,label_txt,'.BiomarkerDistribution_Neutrophil.pdf', sep = ''), dpi = 320 )
+#-------------------------------
+
+
+
+
+#WCC White cell count
 FBCWCC = FBC %>% dplyr::select(ID,date,Result.WCC)
 FBCWCC = FBCWCC %>% 
   rename(
@@ -1484,7 +1637,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = FBCWCC[FBCWCC$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$WCC
 
@@ -1542,7 +1695,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = FBCNLR[FBCNLR$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$NLR_val
 
@@ -1618,7 +1771,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = ClotAPTT[ClotAPTT$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$APTT_val
   # If all_values contains any values, then proceed
@@ -1662,7 +1815,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = ClotPT[ClotPT$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$PT_val
   # If all_values contains any values, then proceed
@@ -1693,12 +1846,14 @@ ClotPT <- ClotPT2
 rm(ClotPT2)
 
 #### Antigen 
-Antigen <- read.csv(file("Antigen.csv"))
-Antigen = Antigen %>% 
-  rename(
-    date = Date.of.Specimen,
-     ID = uob_ID,
-  )
+#Data is very spares only a few dozen tests - omitted
+#Antigen <- read.csv(file("Antigen.csv"))
+#Antigen = Antigen %>% 
+#  rename(
+#    date = Date.of.Specimen,
+#    ID = uob_ID,
+#  )
+
 
 #### poctLAC - Point of Care Testing - Lactate
 poctLAC <- read.csv(file("poctLAC.csv"))
@@ -1733,7 +1888,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = poctLAC[poctLAC$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$poctLAC_val
 
@@ -1799,7 +1954,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = O2[O2$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$O2_val
 
@@ -1865,7 +2020,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = CO2[CO2$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$CO2_val
 
@@ -1933,7 +2088,7 @@ for (id in (unique(commonIDs))){
     # Sort the data by date
   idDates = sort(idDates, decreasing = FALSE)
   # Find covid positive test for this ID
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   # Get all values for this ID and variable within the daterange from positive date
   all_values = poctpH[poctpH$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$poctpH_val
 
@@ -1966,8 +2121,8 @@ for (id in (unique(commonIDs))){
 poctpH <- poctpH2
 rm(poctpH2)
 
-#### Vir - Virology
 
+#### Vir - Virology
 Vir <- read.csv(file("Vir.csv"))
 Vir['Measure']='Vir'
 Vir$Sample.Date = as.Date(Vir$Sample.Date, format="%d/%m/%Y")
@@ -2000,7 +2155,7 @@ for (id in unique(commonIDs)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = Vir[Vir$ID==id,]$date
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   presence = TRUE %in% (Vir[Vir$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$viral_coinfection)
   Vir2 <- Vir2 %>% add_row(ID=id,viral_coinfection=presence)
 
@@ -2008,6 +2163,7 @@ for (id in unique(commonIDs)){
 
 Vir <- Vir2
 rm(Vir2)
+
 
 #### BC
 BC <- read.csv(file("BC.csv"))
@@ -2031,7 +2187,7 @@ for (id in unique(commonIDs)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = BC[BC$ID==id,]$date
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   presence = TRUE %in% (BC[BC$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$bc_coinfection)
   BC2 <- BC2 %>% add_row(ID=id,bc_coinfection=presence)
 
@@ -2062,7 +2218,7 @@ for (id in unique(commonIDs)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = Resp[Resp$ID==id,]$date
-  idPositive = total$positiveDate[total$ID==id]
+  idPositive = total$CriticalDate[total$ID==id]
   presence = TRUE %in% (Resp[Resp$ID==id,][(idDates >= idPositive & idDates < (idPositive + dateRange)),]$resp_coinfection)
   Resp2 <- Resp2 %>% add_row(ID=id,resp_coinfection=presence)
 
@@ -2093,7 +2249,7 @@ for (id in unique(commonIDs)){
     # Find the average value for these dates
     # Store in new table for that variable where we have one value per date per
   idDates = Urine[Urine$ID == id,]$date
-  idPositive = total$positiveDate[total$ID == id]
+  idPositive = total$CriticalDate[total$ID == id]
   presence = TRUE %in% (Urine[Urine$ID == id,][(idDates >= idPositive & idDates < 
                                                 (idPositive + dateRange)),]$urine_coinfection)
   Urine2 <- Urine2 %>% add_row(ID = id, urine_coinfection = presence)
@@ -2102,6 +2258,10 @@ for (id in unique(commonIDs)){
 
 Urine <- Urine2
 rm(Urine2)
+
+
+
+
 
 
 # Merge values with total table by admission date
@@ -2207,17 +2367,16 @@ missingData %>% missing_plot()
 ggsave(paste(fn,'.missing_values_map.pdf', sep = ''),device = 'pdf',
        width = 20, height = 20, units = 'cm', dpi = 300)
 
-# Replace NAs for columns with "Test not taken"
-#replaceNAs_totalBinary <- totalBinary %>% dplyr::select(-ID,-admissionDate,-dischargeDate,
-#-ITU_End,-ITU_Start,-deathDate,-Gender,-Age,-died,-went_to_icu,-severeOutcome,
-#-positiveDate,-coinfection) %>% replace_na("Test not taken")
-
 all_columns <- c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val",
                  "fib_val","Glucose_val","HB_val","HBA1c_val","LDH_val","PCT_val",
                  "PLT_val","trig_val","trop_val","Lymphocytes","Neutrophils",
                  "WCC","NLR_val","APTT_val","PT_val","poctLAC_val","O2_val",
                  "CO2_val","poctpH_val","viral_coinfection","bc_coinfection",
                  "resp_coinfection","urine_coinfection",'Urea_val')
+
+#Note these variables were highlighted as being suitable for imputation missing at random
+#but imputation does NOT take place, could be done here on continuous values
+#or in analysis stage with categoricals
 
 imputed_columns <- c("eGFR_val","WCC","Neutrophils","Lymphocytes","NLR_val",
                      "HB_val","PLT_val","CRP_val")
@@ -2227,10 +2386,5 @@ tnt_columns <- setdiff(all_columns, imputed_columns)
 
 # Replace NA with "Test not taken"
 totalBinary[tnt_columns][is.na(totalBinary[tnt_columns])] <- "Test not taken"
-
-totalBinary$OnAdmission <- with(totalBinary, 
-                                ifelse(positiveDate - admissionDate >= 8,
-                                       FALSE,TRUE))
-
 
 write.csv(x = totalBinary, file = paste(fn,'.csv', sep = ''))

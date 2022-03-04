@@ -5,14 +5,11 @@ output:
   html_document: default
   pdf_document: default
 ---
-# Note R Studio has an issue where the setwd only applied to a chunk, to get around this first run the following on the command line
-#data_dir <- 'C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/brian/data/'
-#setwd(data_dir)
 
-# LABMARCS Visualisation
-## Libraries
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = "C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/brian/data/")
 
-```{r}
 library(ggplot2)
 library(hrbrthemes)
 library(tidyverse)
@@ -1025,6 +1022,41 @@ Outliers, positive kurtosis, positive skew
 ### Neutrophils
 
 ```{r}
+
+#----Example plot for Paper
+
+#First convert to tibble and plot histogram outside loop
+FBCNeutr_df = tibble(sapply(FBCNeutr_ls,c))
+colnames(FBCNeutr_df) = 'Neutrophil Count'
+hist.data.frame(FBCNeutr_df)
+
+#Example Biomarker Plot for Paper
+ypl = 70
+spl = 5
+qplot(data = FBCNeutr_df, x = `Neutrophil Count`, geom = 'histogram',  fill = I("lightblue"), 
+      col = I("darkblue"), binwidth = 0.5, ylab = 'Frequency') +
+  labs(subtitle = "") + #Normal reference range = 2-7.5 
+  geom_histogram(color = "darkblue", fill = "lightblue", binwidth = 0.5) + 
+  geom_vline(xintercept = 0.5,colour = "red") +
+  geom_vline(xintercept = 1,colour = "red") +
+  geom_vline(xintercept = 2,colour = "red") +
+  geom_vline(xintercept = 7.5,colour = "red") +
+  annotate("text", label = "Severe", x = 0.15, y = ypl, size = spl, 
+           colour = "black", angle = 90, hjust = 0 , fontface = "bold") +
+  annotate("text", label = "Moderate", x = .75, y = ypl, size = spl, 
+           colour = "black", angle = 90, hjust = 0, fontface = "bold") +
+  annotate("text", label = "Mild", x = 1.5, y = ypl, size = spl, 
+           colour = "black", angle = 90, hjust = 0, fontface = "bold") +
+  annotate("text", label = "Normal", x = 4.75, y = ypl + 50, size = spl, 
+           colour = "black", fontface = "bold") +
+  annotate("text", label = "Severe", x = 10, y = ypl, size = spl, 
+           colour = "black", hjust = 0, fontface = "bold") +
+  theme(text = element_text(size = 30))           
+
+ggsave(paste(work_path,'BiomarkerDistribution_Neutrophil.pdf',sep=''), dpi = 320 )
+#-------------------------------
+
+
 ggplot(data = FBCNeutr, aes(x=Neutrophils)) +
   ggtitle("Neutrophils distribution") +
   labs(subtitle="Reference range = 2.0-7.5 10^9/L") + 
@@ -1633,7 +1665,7 @@ show_patient_viz <- function(patientID) {
   new_data = total %>% filter(uob_ID==patientID)
   new_data$Measure <- factor(new_data$Measure, levels = c("BNP","LDH","HBA1c","trig","trop","DDM","FER","PCT","fib","Glucose","PT","APTT","PLT","CRP","eGFR","poctLAC","poctpH","O2","CO2","WCC","Lymphocytes","Neutrophils","NLR","HB","BE"))
   p <- ( ggplot() + 
-           ggtitle(paste("Patient",patientID,"summary")) + 
+           ggtitle(paste(i, ", Patient",patientID,"summary")) + 
            labs(subtitle=paste("Gender:",val_outcome$Gender,"Age",val_outcome$Age)) +
            geom_tile(new_data, mapping=aes(date, Measure, fill= Numeric.Result)) + 
            scale_fill_viridis_c(na.value = "grey50",option = "plasma")+
@@ -1745,42 +1777,68 @@ avonCap_info <- function(patientID) {
 
 ```{r, results='asis'}
 
-#create a store nunber of days from covid positive to first measure per patient
-days_to_reading_mt = matrix(data = NA, nrow = dim(dem)[1], ncol = length(levels(total$Measure)))
+#read list of valid UOB Ids
+ID_list = read.csv('C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/brian/totalBinary3first.csv')
+
+#we parse the list into validation (Weston) vs train (UHB, NBT)
+train_id_list = ID_list[ID_list$Site != 'Weston', 'ID']
+test_id_list = ID_list[ID_list$Site == 'Weston','ID']
+
+#NOTE the visualisation will only do train or test not both - alter ID_list for the desired set
+ID_list = train_id_list
+
+#create a store number of days from covid positive to first measure per patient
+days_to_reading_mt = matrix(data = NA, nrow = length(ID_list), ncol = length(levels(total$Measure)))
 colnames(days_to_reading_mt) <- levels(total$Measure)
 
 #make a copy to track number of readings per person/measure
 num_readings_mt = days_to_reading_mt
+#make a copy for a matrix to track number of days between admit & c19 positive
+days_between_admit_c19positive_mt = matrix(data = NA, nrow = length(ID_list), ncol = 1)
 
-covid_ls = matrix( data = TRUE, nrow = dim(dem)[1], ncol = 1 )
+covid_ls = matrix( data = TRUE, nrow = length(ID_list), ncol = 1 )
 
-for (i in (1:dim(dem)[1])) { # 10)){ #
+#prepare structure to find IDs who have very long waits till first reading
+ReadingOutlier_tb = tibble(ID = '', READING = '', DAYS = NA)
+ctr = 0
+
+for (i in (1:length(ID_list))) { #use only valid UOB ids
   
     #grab some data on patient and tests (copied from show_patient_viz)
-    patientID = dem$uob_ID[i]
+    patientID = ID_list[i]
+    admitDate = (totalOutcomes %>% filter(totalOutcomes$uob_ID == patientID))$admissionDate
     positiveDate = (CovidCT %>% filter(CovidCT$uob_ID == patientID))[1,]$date
     val_outcome = subset(dem, uob_ID == patientID)[1,]
     new_data = total %>% filter(uob_ID == patientID)
     
-    #check if they had a positive test
+    #check if they had a positive test and at least 18
     if (!is.na(positiveDate) & (dem$Age[i] > 17) ) {
       unique_measures_ls = unique(new_data$Measure)
       
+      days_between_admit_c19positive_mt[i] = as.numeric(admitDate - positiveDate)
       #find amount of days from positive to first test for each test
       for (j in unique_measures_ls) {
         idx1 = new_data$Measure == j
-        days_between_pos_reading = new_data$date[idx1] - positiveDate
+        days_between_pos_reading = positiveDate - new_data$date[idx1]
         
         #index to see if any readings AFTER covid test
         idx2 = days_between_pos_reading >= 0
         if (sum(idx2) > 0) {
           minimum_day = min(days_between_pos_reading[idx2])
+          
+          if (minimum_day > 10) {
+            ctr = ctr + 1
+            ReadingOutlier_tb[ctr,1] = patientID
+            ReadingOutlier_tb[ctr,2] = j
+            ReadingOutlier_tb[ctr,3] = minimum_day
+          }
+          
           days_to_reading_mt[i,j] = minimum_day[[1]]
-          num_readings_mt[i,j] = length(days_between_pos_reading)
+          num_readings_mt[i,j] = sum(idx2)
           
         }
       }
-      cat("### Visualisation of patient", i)
+      cat("### Visualisation of patient", patientID)
       cat("\n\n")
       
       if(1) { #if you want visualization
@@ -1796,7 +1854,7 @@ for (i in (1:dim(dem)[1])) { # 10)){ #
     
 }
 
-columns= c("numReadings","Within1days","Over1Days", "Within3days","Over3Days", "Within5days","Over5Days") 
+columns = c("numReadings","Within1days","Over1Days", "Within3days","Over3Days", "Within5days","Over5Days") 
 reading_stats = data.frame(matrix(nrow = 0, ncol = length(columns))) 
 colnames(reading_stats) = columns
 
@@ -1831,4 +1889,11 @@ for (j in colnames(days_to_reading_mt)) {
   
   
 }
+
+hist(days_between_admit_c19positive_mt, xlab = 'Days from Admit to Cov+', 
+     main = paste('Days between admission and c19+'))
+
+
+
+
 ```

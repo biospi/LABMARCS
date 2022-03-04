@@ -1,7 +1,9 @@
-# perform nested cross-validation to report on the GLM models
+# perform nested cross-validation to report on the  models
+library(ProbBayes)
+library(brms)
 
-mnum = 'LASSO'
-print("Run LASSO Model Cross Validation...")
+mnum = 'BAYES'
+print("Run bayes Model Cross Validation...")
 model_desc_str = paste(cv_desc,mnum,'_R',as.character(repeats),'_OF', 
                        as.character(outsidefolds), '_IF', 
                        as.character(insidefolds), '_', sep = '')
@@ -17,7 +19,6 @@ includedvars <- list(length = n_models)
 roccurve <- vector(mode = "list", length = n_models)
 varnames <- vector(mode = "list", length = n_models)
 calibration_df = data.frame()
-calibration_n_df = data.frame()
 
 
 #initiate stat model list data structure (don't need to reset when test generalisation)
@@ -91,25 +92,20 @@ for (j in 1:repeats) {
       
       x <- model.matrix(outcome~., of_crossval.train.data)[,-1]
       idx <- 1:(dim(of_crossval.train.data)[2] - 1) #omit outcome column
-      cv.lasso <- cv.glmnet(x,of_crossval.train.data$outcome, alpha = 1, 
-                            data = of_crossval.train.data[,idx],
-                            nfolds = insidefolds,
-                            family = "binomial")
-      lambda.store[outsidefolds*(j - 1) + i] <- cv.lasso$lambda.1se
-      StatModel <- glmnet(x, of_crossval.train.data$outcome, alpha = 1, 
-                          family = "binomial",
-                          lambda = cv.lasso$lambda.min) #Optimal lambda 
-                          #lambda = cv.lasso$lambda.1se) <Should we do this?
-      #instead of using min lambda estimated for each dataset
-      #use our best guess from above that is median of set that were 1se above the optimal lambda
-
+      
+      fit <- brm(outcome ~ .,
+                 data = of_crossval.train.data,
+                 family = bernoulli(),
+                 prior = prior(horseshoe(), class = b),
+                 refresh = 0)
+      
       #save models for test with generalisation set
-      StatModel_ls[[outsidefolds*(j - 1) + i]] <- StatModel
+      StatModel_ls[[outsidefolds*(j - 1) + i]] <- fit
       
     }
     
-    x.test <- model.matrix(outcome ~., of_crossval.test.data)[,-1]
-    probabilities_of <- StatModel %>% predict(newx = x.test, type = "response")
+    refmodel <- get_refmodel(fit)
+    probabilities_of <- predict(object = refmodel, of_crossval.test.data, type = "response")
 
     # Test the best predicted lambda on the remaining data in the outer fold
     predicted.classes_of <- ifelse(probabilities_of > 0.5, 1, 0)
@@ -134,7 +130,6 @@ for (j in 1:repeats) {
       #calibration_df[zz,1] = kk
       #what is the % true outcome for this particular bin
       calibration_df[outsidefolds*(j - 1) + i,zz] = cal_p
-      calibration_n_df[outsidefolds*(j - 1) + i,zz] = sum(tmp_prob_bin_idx)
     }
     
     
@@ -194,18 +189,9 @@ for (j in 1:repeats) {
     
   }
 } #Main Cross-validation loop
+  
 
-#add plot for training and for test
-calplot_y<-vector()
-calplot_x<-vector()
-for (kk in 1:dim(calibration_df)[2]){
-  calplot_y[kk]=median(calibration_df[,kk], na.rm = TRUE)
-  calplot_x[kk]=kk*cal_interval
-}  
 
-plot(calplot_x,calplot_y, type='o', xlab ='Risk Probability Strata', 
-     ylab='Observed % of Population',panel.first = grid(), main = 'Model Calibration for Test Data')
- 
 auc_quantile <- as.numeric(quantile(auc, c(.025, .50, .975)))
 brier_quantile <- as.numeric(quantile(brier, c(.025, .50, .975)))
 lambda.store_quantile <- as.numeric(quantile(lambda.store, c(.025, .50, .975)))
@@ -476,7 +462,7 @@ for (ii in 1:length(varratios)) {
 }
 
 colnames(varratios_df) <- varnames[[1]]
-write.csv(varratios_df,paste(save_path,'LASSO_VarRatios.csv', sep = ''))
+write.csv(varratios_df,paste(save_path,'BAYES_VarRatios.csv', sep = ''))
 
 #add in variables details about model setup
 varratios_stat_df[m_ctr,1] <- outcome_str
@@ -496,7 +482,7 @@ for (ii in 1:dim(varratios_df)[2]) {
 
 #note this is a compendium - we don't need to save each loop iteration but do so just in case 
 colnames(varratios_stat_df) <- varnames[[1]]
-write.csv(varratios_stat_df,paste(output_path,'LASSO_MedianVarRatios_Compendium.csv', sep = ''))
+write.csv(varratios_stat_df,paste(output_path,'BAYES_MedianVarRatios_Compendium.csv', sep = ''))
 
 
 colnames(freqpairs) <- varnames[[1]]
@@ -507,112 +493,3 @@ pdf(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str,
 corrplot(cor(freqpairs), method = "number",number.cex = 0.2,tl.cex = 0.35)
 dev.off()
 
-
-
-
-
-
-if (0) { #not sure we need lasso on full data as we have full GLM 
-  # LOOK AT MINIMUM REPORTING FOR STABILITY ANALYSES FROM STATS RECOMMENDATIONS
-  #---------------------------------------------------------------------------
-  print("Run Lasso with ALL data")
-  # Create the final model over the whole dataset, with the expected performance 
-  #from nested CV
-  x <- model.matrix(outcome~., fulldata)[,-1]
-  cv.lasso <- cv.glmnet(x,fulldata$outcome, alpha = 1, data = fulldata,  
-                        nfolds = insidefolds, family = "binomial")
-  
-  pdf(paste(save_path, 'LASSO_AllData_Lambda.pdf',sep = ''))
-  plot(cv.lasso)
-  dev.off()
-  
-  StatModel_FullLasso <- glmnet(x, fulldata$outcome, alpha = 1, family = "binomial",
-                                lambda = cv.lasso$lambda.1se)
-  
-  sink(paste(save_path, 'LASSO_LassoAllData_Summary.txt',sep = ''))
-  
-  # Display regression coefficients
-  print('Coefficients')
-  print(coef(StatModel_FullLasso))
-  
-  # Examine odds ratios
-  print('Odds Ratios')
-  print(exp(coef(StatModel_FullLasso)))
-  
-  # Test the best predicted lambda on the remaining data in the outer fold
-  x.test <- model.matrix(outcome ~., test.data)[,-1]
-  probabilities <- StatModel_FullLasso %>% predict(newx = x.test, type = "response")
-  predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
-  
-  
-
-  
-  conf_matrix <- table(predicted.classes,test.data$outcome)
-  
-  tab <- matrix(c(0,0,0,0), ncol = 2, byrow = TRUE)
-  colnames(tab) <- c('0','1')
-  rownames(tab) <- c('0','1')
-  tab <- as.table(tab)
-  
-  #sometimes the conf matrix is incomplete copy what we do have to tab
-  tryCatch(tab[1,1] <- conf_matrix[1,'FALSE'], error = function(e) {tab[1,1] <- 0 } )
-  tryCatch(tab[2,1] <- conf_matrix[2,'FALSE'], error = function(e) {tab[2,1] <- 0 } )
-  tryCatch(tab[1,2] <- conf_matrix[1,'TRUE'], error = function(e) {tab[1,2] <- 0 } )
-  tryCatch(tab[2,2] <- conf_matrix[2,'TRUE'], error = function(e) {tab[2,2] <- 0 } )
-  
-  print('Sensitivity')
-  out_sen <- as.numeric(sensitivity(tab)['.estimate'])
-  print(out_sen)
-  
-  print('Specificity')
-  out_spec <- as.numeric(specificity(tab)['.estimate'])
-  out_spec <- print(out_spec)
-  
-  # Model accuracy
-  print('Accuracy')
-  out_acc <- mean(predicted.classes == test.data$outcome)
-  print(out_acc)
-  
-  # Plot ROC curve and find AUC
-  roccurve3 <- roc(outcome ~ c(probabilities), data = test.data)
-  out_auc <- auc(roccurve3)
-  print('AUC')
-  print(out_auc)
-  
-  #pdf(paste(save_path, 'Model_4_LassoAllData_ROC.pdf', sep = ''))
-  ggroc(roccurve3, legacy.axes = T) +
-    geom_abline(slope = 1 ,intercept = 0) + # add identity line
-    theme(
-      panel.background = element_blank(), 
-      axis.title.x = element_text(size = 18, face = 'bold'),
-      axis.title.y = element_text(size = 18, face = 'bold'),
-      panel.border = element_rect(size = 2, fill = NA), 
-      axis.text.x = element_text(size = 14, face = 'bold'),
-      axis.text.y = element_text(size = 14, face = 'bold')) +
-    xlab('1 - Specificity') +
-    ylab('Sensitivity') +
-    scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
-    scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25))
-  ggsave(paste(save_path, 'LASSO_AllData_ROC.pdf', sep = ''),device = 'pdf',
-         width = 20, height = 20, units = 'cm', dpi = 300)
-  
-  # Brier score
-  f_t <- probabilities
-  o_t <- test.data$outcome
-  out_brier <- mean(((f_t) - o_t)^2)
-  #out_brier <- BrierScore(StatModel_FullLasso) ?pred missing - GLMnet?
-  print('brier score')
-  print(out_brier)
-  sink()
-  sink()
-  
-  print("Saving results table...")
-  #save things to our summary datatable
-  batch_df[m_ctr,] <- c('FullLasso', readingwanted_str, dateRange, outcome_str,
-                        out_acc,out_auc, out_brier, out_sen, out_spec)
-  write.table(batch_df, file = paste(getwd(),'/output/LASSO_batch_summary_table.txt',sep=''),
-              row.names = FALSE)
-  
-  # ---------------------------------------------------------------------
-  print('-- Done! --')
-}

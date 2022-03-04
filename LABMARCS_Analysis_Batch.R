@@ -28,7 +28,7 @@ output_path <- paste(work_path, 'output/', sep = '')
 #can then be turned off if you wish to focus on stats output
 if (1) {
 # Loop through the data preparation operations
-  for (day_idx in c(1,3,5,7,14)) { 
+  for (day_idx in c(1,3,5,7)) { 
     for (reading_idx in c(0,1,2)) { 
       dateRange <- day_idx # number of days
       readingwanted <- reading_idx # 0-worst, 1-first, 2-mean
@@ -37,6 +37,7 @@ if (1) {
     }
   }
 }
+
 
 
 #PART 2: Data Analysis

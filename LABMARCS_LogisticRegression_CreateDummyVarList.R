@@ -1,8 +1,19 @@
 #Using univariate analysis include only vars that were statistically 
 #significant (or clinically significant), Commented out variable at end is the reference group
-if (1) {
+
+if (0) { #reduced model based on projpred
+  dum_var_ls <- c('Age_50_59','Age_60_69','Age_70_79','Age_80above', # Age_Below50 
+                  "NLR_val_Normal","NLR_val_Mild","NLR_val_Moderate","NLR_val_Severe",#"NLR_val_NA"                
+                  "O2_val_Normal","O2_val_Abnormal", #"O2_val_Test not taken"      
+                  "CO2_val_Normal","CO2_val_Abnormal",  #"CO2_val_Test not taken"     
+                  "Urea_val_Normal","Urea_val_Abnormal", #"Urea_val_Test not taken"
+                  "outcome" #always have outcome in final column
+  )
+}
+
+if (1) { #curated selection (no vars that aren't significant in univar)
   dum_var_ls <- c("Gender_F", #Gender_M ODD gender is not significant in GLM
-                  'Age_50_59','Age_60_69','Age_70_79','Age_80above', # Age_Below50 
+                  'Age', # Age_50_59','Age_60_69','Age_70_79','Age_80above', # Age_Below50 
                   "BE_val_Normal","BE_val_Abnormal",  #"BE_val_Test not taken"
                   "BNP_val_Normal","BNP_val_Abnormal",#"BNP_val_Test not taken"
                   "CRP_val_Normal","CRP_val_Abnormal", #"CRP_val_NA"
@@ -37,6 +48,9 @@ if (1) {
                   "outcome" #always have outcome in final column
   )
 }
+
+
+
 
 # #IF we only include those that have 30% > data
 if (0) {
@@ -103,9 +117,7 @@ if (0) {
   "WCC_Normal","WCC_Mild","WCC_Moderate","WCC_Severe", #"WCC_NA"
   "NLR_val_Normal","NLR_val_Mild","NLR_val_Moderate","NLR_val_Severe",#"NLR_val_NA"
   "APTT_val_Normal","APTT_val_Mild","APTT_val_Moderate",#"APTT_val_Test not taken"
-  
-  #"PT_val_Normal","PT_val_Test not taken",# "PT_val_NA" CHECK!!! -- Too limited
-  
+#  "PT_val_Normal","PT_val_Test not taken",# "PT_val_NA" CHECK!!! -- Too limited
   "poctLAC_val_Normal","poctLAC_val_Abnormal", #"poctLAC_val_Test not taken"
   "O2_val_Normal","O2_val_Abnormal", #"O2_val_Test not taken"
   "CO2_val_Normal","CO2_val_Abnormal",  #"CO2_val_Test not taken"

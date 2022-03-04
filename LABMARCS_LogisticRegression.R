@@ -23,9 +23,6 @@ LookForUpdates <- 0
 #below all at once
 InstallPackages <- 0
 
-# Load libraries
-LoadLibraries <- 1
-  
 # Choose to include Firth's bias in the models (constrains parameters 
 #from >> numbers) #currently breaks - debug
 IncludeFirthBias <- 0
@@ -43,9 +40,6 @@ if (ImputationAllowed == 0) {
 # Loses 50% of data but appears to be a better model
 Comorbidities <- 0
   
-
-
-
 # BatchAnalysisOn==1 prevents the dateRange and readingwanted variables from
 # being overwritten, but the option to turn this off and run this script 
 # without first running MasterAnalysis.R is available by setting 
@@ -92,8 +86,8 @@ if (LookForUpdates == 1) {
   updateR()
 }
 
+# Packages which may require installation
 if (InstallPackages == 1) {
-  # Packages which may require installation
   install.packages("mice")
   install.packages("DescTools")
   install.packages("moments")
@@ -104,35 +98,44 @@ if (InstallPackages == 1) {
   install.packages("mbest")
   install.packages("nestfs")
   install.packages("patchwork")
+  #need development projpred version https://github.com/stan-dev/projpred
+  devtools::install_github('stan-dev/projpred', ref = 'develop', build_vignettes = TRUE)
 }
 
-if (LoadLibraries == 1) {
-  # Load libraries
-  library("mice")
-  library("nestfs")
-  library("dplyr")
-  library("MASS")
-  library("VIM")
-  library("RANN")
-  library("moments")
-  library("DescTools")
-  library("caret")
-  library("corrplot")
-  library("glmnet")
-  library("pROC")
-  library("tidymodels")
-  library("mbest")
-  library("ggplot2")
-  library("pROC")
-  library("md")
-  library('fastDummies')
-  library('data.table')
-  library('patchwork')
-}
-  
+#LOAD REQUIRED LIBRARIES
+library("mice")
+library("nestfs")
+library("dplyr")
+library("MASS")
+library("VIM")
+library("RANN")
+library("moments")
+library("DescTools")
+library("caret")
+library("corrplot")
+library("glmnet")
+library("pROC")
+library("tidymodels")
+library("mbest")
+library("ggplot2")
+library("pROC")
+library("md")
+library('fastDummies')
+library('data.table')
+library('patchwork')
+#Bayesian packages required  
+library(ProbBayes)
+library(brms)
+library(stringr)
+library(projpred) 
+library(dplyr)
+library(ggplot2)
+library(bayesplot)
+options(mc.cores = parallel::detectCores())
+
+
 # DATA PROCESSING ------------------------------------------------------
 # Read in data depending on day window & best/worst/mean measurement compression
-
 setwd(work_path)
 
 save_path = paste(output_path, 'Day-',dateRange,'_Reading-',readingwanted_str,
@@ -275,67 +278,14 @@ summary(fulldata)
 # INPUT EXAMINATION ----------------------------------------------------
 
 #lets make age categorical too <50, 50-59, 60-69, 70-80, 80+
-fulldata$Age_Below50 <- fulldata$Age < 50
-fulldata$Age_50_59 <- (fulldata$Age >= 50) & (fulldata$Age < 60)
-fulldata$Age_60_69 <- (fulldata$Age >= 60) & (fulldata$Age < 70)
-fulldata$Age_70_79 <- (fulldata$Age >= 70) & (fulldata$Age < 80)
-fulldata$Age_80above <- (fulldata$Age >= 80)
+fulldata$Age_Below50 <- as.numeric(fulldata$Age < 50)
+fulldata$Age_50_59 <- as.numeric((fulldata$Age >= 50) & (fulldata$Age < 60))
+fulldata$Age_60_69 <- as.numeric((fulldata$Age >= 60) & (fulldata$Age < 70))
+fulldata$Age_70_79 <- as.numeric((fulldata$Age >= 70) & (fulldata$Age < 80))
+fulldata$Age_80above <- as.numeric((fulldata$Age >= 80))
 
 
 
-#this transforms age in a way different from ISARIC - not sure if needed
-if (0) {
-  # Calculate the skewness of the continuous variables
-  skewness(fulldata$Age, na.rm = TRUE) # moderate negative skew
-  # Transform variables which have skew
-  
-  #note this transform flips things so younger is a higher number
-  fulldata$Age <- log10(max(fulldata$Age + 1) - fulldata$Age)
-  
-  # Check new skewness values
-  skewness(fulldata$Age, na.rm = TRUE) 
-    
-  # Plot histograms of continuous variables to examine distributions
-  nbreaks <- pretty(range(fulldata$Age),n = 20)
-  par(mfrow = c(1,1))
-  xlab <- paste('Age, bin width=', as.character(nbreaks[2] - nbreaks[1]))
-  pdf(paste(save_path, 'age_histogram_transformed.pdf',sep = ''))
-  hist(fulldata$Age,main = "Distribution of Patient Ages",xlab = xlab, breaks = nbreaks)
-  dev.off()
-    
-  # Scale continuous variables to have mean 0 and sd of 1
-  fulldata$Age <- scale(fulldata$Age)[, 1]
-    
-  # Check the scaling has worked as expected
-  #mean(fulldata$Age)
-  #sd(fulldata$Age)
-    
-  # Plot regularized variables
-  # Plot histograms of continuous variables to examine distributions
-  nbreaks <- pretty(range(fulldata$Age),n = 20)
-  par(mfrow = c(1,1))
-  xlab <- paste('Age, bin width=', as.character(nbreaks[2] - nbreaks[1]))
-  pdf(paste(save_path, 'age_histogram_regularized.pdf',sep = '' ))
-  hist(fulldata$Age,main = "Distribution of Patient Ages",xlab = xlab, breaks = nbreaks)
-  dev.off()
-    
-  # Plot boxplots to look for outliers
-  par(mfrow = c(1,1))
-  pdf(paste(save_path, 'age_boxplot_outliers.pdf',sep = ''))
-  boxplot(fulldata$Age,main = "Age", ylab = "Years")
-  dev.off()
-    
-  # Examine continuous variables before winsorisation
-  summary(fulldata$Age)
-  
-  # Winsorise the data at the 1st and 99% percentile (replace extreme values)
-  fulldata$Age <- Winsorize(fulldata$Age, minval = NULL, maxval = NULL,
-                               probs = c(0.01, 0.99), na.rm = FALSE, type = 7)
-  
-  # Examine continuous variables after winsorisation
-  summary(fulldata$Age)
-}
- 
 # ASSIGN TRAINING AND TEST DATA SETS ----------------------------------
 
 #The function below will remove variable columns that have 'NA/Test Not Taken'
@@ -361,6 +311,9 @@ if (1) {
   sink()
 }
 
+#perform any final tranforms on data n=826
+
+
 #----------------------------------------------------------------------
 #create dummy variables (glm can do for you but better to manually specify)
 fulldata_origin_filter <- fulldata
@@ -381,6 +334,9 @@ fulldata <- tmp[,dum_var_ls]
 logCond = siteData == 'NBT' | siteData == "UHB1" | siteData == "UHB2"
 train.data <- fulldata[logCond, ]
 test.data <- fulldata[!logCond, ] #this is the generalisation test 
+train.data_NoDummy <- fulldata_nodummy[logCond, ]
+test.data_NoDummy <- fulldata_nodummy[!logCond, ] #this is the generalisation test 
+
 
 
 # DATA IMPUTATION
@@ -394,7 +350,7 @@ if (ImputationAllowed == 0) {
       source(paste(work_path, "LABMARCS_LogisticRegression_ImputeData.R", sep = ''))
 }
 
-#If counting patient numbers keep site until here
+#If counting patient numbers keep site data until here
 #fulldata <- subset(fulldata, select = -c(Site))
 #sink(paste(save_path,'FILTER_Patient_Numbers.txt', sep = ''))
 #print(paste('Total Patients:',as.character(dim(fulldata)[1]) ))
@@ -402,6 +358,10 @@ if (ImputationAllowed == 0) {
 #sink()
 
 print("Finished pre-processing")
+
+#save list of all participants train and test for visualizations
+
+
 
 #prepare data structures for saving across batch loop
 if (!BatchAnalysisOn) {
@@ -438,8 +398,8 @@ glm_fulldata_batch_df[m_ctr,] <- c('GLM', readingwanted_str, dateRange, outcome_
 write.table(glm_fulldata_batch_df, file = paste(output_path,'Batch_GLM_TrainFullData_TestFullData_Summary_Table.csv',sep = ''),
             row.names = FALSE, sep = ',')
   
-  
-#Run a GLM only on train.data (UHB,NBT) and test on test.data (Weston)
+#Internal Validation  
+#Run a GLM only on train.data (UHB,NBT) and test on train.data (Weston)
 SelectedData <- train.data
 SelectedDataOutcome <- train.data
 SelectedData_str <- paste('Train_TrainData_Test_TrainData_N', as.character(dim(SelectedData)[1]) , sep = '')
@@ -452,10 +412,11 @@ glm_traindata_batch_df1[m_ctr,] <- c('GLM', readingwanted_str, dateRange, outcom
 write.table(glm_traindata_batch_df1, file = paste(output_path,'Batch_GLM_Train_TrainData_Test_TrainData_Summary_Table.csv',sep = ''),
             row.names = FALSE, sep = ',')
 
+#External Validation
 #Run a GLM only on train.data (UHB,NBT) and test on test.data (Weston)
 SelectedData <- train.data
 SelectedDataOutcome <- test.data
-SelectedData_str <- paste('Train_TrainData_Test_TestData_N', as.character(dim(SelectedData)[1]) , sep = '')
+SelectedData_str <- paste('Train_TrainData_Test_GeneraliseData_N', as.character(dim(SelectedData)[1]) , sep = '')
 print('Run GLM, train on UHB/NBT, test on Weston...')
 source(paste(work_path,'LABMARCS_LogisticRegression_GLM_On_Selected_Data.R', sep = ''))
   
@@ -481,6 +442,9 @@ if (!BatchAnalysisOn) {
   cv_batch_df2 <- cv_batch_df1 
   cv_batch_df3 <- cv_batch_df1 
   cv_batch_df4 <- cv_batch_df1 
+  cv_batch_df5 <- cv_batch_df1 
+  
+  varratios_stat_df <- data.frame() 
 }
   
 
@@ -514,7 +478,7 @@ write.table(cv_batch_df1, file = paste(output_path, 'GLM_Train_Summary_Compendiu
 crossval.train.data <- train.data
 crossval.test.data <- test.data
 generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified 
-cv_desc = 'Train_CVTrainData_Test_GeneraliseTestData_'
+cv_desc = 'Train_CVTrainData_Test_GeneraliseData_'
 p_str <- 'G' #(G)eneralise
 print('Run GLM with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
 source('LABMARCS_LogisticRegression_CrossValidate_GLM_On_Selected_Data.R')
@@ -542,7 +506,10 @@ cv_desc = 'Train_CVTrainData_Test_CVTestData_'
 p_str <- 'TL' #(T)rain, text prefix for roc curve compendium variables
 print('Run LASSO with CrossVal Train only UHB/NBT 80/20 split...')
 source('LABMARCS_LogisticRegression_CrossValidate_LASSO_On_Selected_Data.R')
-  
+
+
+
+
 #save things to our summary data table
 cv_batch_df3[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
                           median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
@@ -578,7 +545,7 @@ write.table(cv_batch_varlist_df1, file = paste(output_path, 'LASSO_Variable_Sele
 crossval.train.data <- train.data
 crossval.test.data <- test.data
 generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified 
-cv_desc = 'Train_CVTrainData_Test_GeneraliseTestData_'
+cv_desc = 'Train_CVTrainData_Test_GeneraliseData_'
 p_str <- 'GL' #(T)rain, text prefix for roc curve compendium variables
 print('Run LASSO with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
 source('LABMARCS_LogisticRegression_CrossValidate_LASSO_On_Selected_Data.R')
@@ -598,3 +565,252 @@ write.table(cv_batch_df4, file = paste(output_path, 'LASSO_Generalise_Summary_Co
             row.names = FALSE, sep = ',')
 #--------------------------------------------------------------------------------------
   
+
+#-----Test Bayesian Logistic Regression-------------------
+
+#get cIS for model on training dataset
+crossval.train.data <- train.data
+crossval.test.data <- train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified 
+cv_desc = 'Train_CVTrainData_Test_TrainData_'
+p_str <- 'BY' #(T)rain, text prefix for roc curve compendium variables
+print('Run BAYES with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
+source('LABMARCS_LogisticRegression_CrossValidate_BAYES_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df5[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3]) 
+
+write.table(cv_batch_df5, file = paste(output_path, 'BAYES_Train_Summary_Compendium.csv',sep = ''),
+            row.names = FALSE, sep = ',')
+
+#k-fold variable selection can't deal with 1/0 needs to be T/F
+#for (j in seq(1,dim(train.data)[2])){
+#  train.data[,j] = as.logical(train.data[,j])
+#  test.data[,j] = as.logical(test.data[,j])
+#}
+#above doesn't fix... error is Error: New factor levels are not allowed.
+#Levels allowed: 'FALSE', 'TRUE' , Levels found: '0', '1'
+
+train.data
+crossval.test.data <- test.data
+names(train.data) = str_replace_all(names(train.data),"_","")
+names(test.data) = str_replace_all(names(test.data),"_","")
+
+# Horseshoe prior from BRMS vignette
+#n <- nrow(train.data) # 100
+#D <- ncol(train.data[, -1]) # 20
+#p0 <- 10 # prior guess for the number of relevant variables
+#tau0 <- p0/(D-p0) * 1/sqrt(n) # scale for tau (notice that stan_glm will automatically scale this by sigma)
+#prior=prior(horseshoe(scale_global = tau0, scale_slab = 1), class=b),
+
+# In practice, at least 4 chains should be 
+# used and 2000 iterations might be required for reliable inference.
+# seed=1, chains=4, iter=2000) #try larger value than 2000 to get r_hat close to <1.05
+
+#convert data into logical format
+train.data_bool <- train.data
+for (i in seq(1,dim(train.data)[2])){
+  train.data_bool[,i] <- as.logical(train.data[,i])
+}
+
+brmfit <- brm(outcome ~ .,
+            data = train.data_bool,
+            family = bernoulli(),
+            prior = prior(horseshoe(), class = b),
+            refresh = 0)
+
+summary(brmfit)
+# plot(fit2) <run when exmaining manually else ruins script due to interactivity
+mcmc_plot(brmfit, pars = "b")
+refmodel <- get_refmodel(brmfit)
+
+#posterior predictive check
+pp_check(refmodel$fit, ndraws = 500, alpha = 0.1)
+
+loo_reference_fit <- loo(refmodel$fit)
+loo_reference_fit
+plot(loo_reference_fit)
+
+pred <- predict(object = refmodel, train.data, type = "response")
+roccurve1 <- roc(outcome ~ pred, data = train.data)
+auc1 <- auc(roccurve1)
+
+ggroc(roccurve1, legacy.axes = T) +
+  geom_abline(slope = 1 ,intercept = 0) + # add identity line
+  theme(
+    panel.background = element_blank(), 
+    axis.title.x = element_text(size = 18, face = 'bold'),
+    axis.title.y = element_text(size = 18, face = 'bold'),
+    panel.border = element_rect(size = 2, fill = NA), 
+    axis.text.x = element_text(size = 14, face = 'bold'),
+    axis.text.y = element_text(size = 14, face = 'bold')) +
+  xlab('1 - Specificity') +
+  ylab('Sensitivity') +
+  scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
+  scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) +
+  geom_text(x = 0.1, y = 1, colour = "black", size = 6,
+            label = paste('AUC: ', sprintf("%0.2f",auc1), sep = '') )
+
+SelectedData_str ='Train_FullTrainData_Test_TrainData'
+ggsave(paste(save_path, 'Model_BAYES_', SelectedData_str,'_ROC.pdf', sep = ''),device = 'pdf',
+       width = 20, height = 20, units = 'cm', dpi = 300)
+
+
+
+pred <- predict(object = refmodel, test.data, type = "response")
+roccurve2 <- roc(outcome ~ pred, data = test.data)
+auc2 <- auc(roccurve2)
+
+ggroc(roccurve2, legacy.axes = T) +
+  geom_abline(slope = 1 ,intercept = 0) + # add identity line
+  theme(
+    panel.background = element_blank(), 
+    axis.title.x = element_text(size = 18, face = 'bold'),
+    axis.title.y = element_text(size = 18, face = 'bold'),
+    panel.border = element_rect(size = 2, fill = NA), 
+    axis.text.x = element_text(size = 14, face = 'bold'),
+    axis.text.y = element_text(size = 14, face = 'bold')) +
+  xlab('1 - Specificity') +
+  ylab('Sensitivity') +
+  scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
+  scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) +
+  geom_text(x = 0.1, y = 1, colour = "black", size = 6,
+            label = paste('AUC: ', sprintf("%0.2f",auc2), sep = '') )
+
+SelectedData_str = 'Train_FullTrainData_Test_TestData'
+ggsave(paste(save_path, 'Model_BAYES_', SelectedData_str,'_ROC.pdf', sep = ''),device = 'pdf',
+       width = 20, height = 20, units = 'cm', dpi = 300)
+
+
+#-------------------------------------
+#evaluate reduced model
+
+#NOTE!! cv_varsel is computationally intense can take 8+ hours on ~500 patients data
+#standard is LOO
+vs <- cv_varsel(refmodel)
+#keeps giving error about new factors not allowed? needs boolean not integer...
+vs_k <- cv_varsel(refmodel, cv_method = 'kfold') #,K=20
+
+nv <- suggest_size(vs,alpha = 0.2) #= 80%
+
+# Visualise the most relevant variables in the full model -->
+mcmc_areas(as.matrix(refmodel$fit),
+           pars = c("b_Intercept", paste0("b_", solution_terms(vs)[1:nv]))) +
+  coord_cartesian(xlim = c(-3, 3)) 
+
+#examine variable selection results
+solution_terms(vs)
+plot(vs, stats = c('auc', 'elpd'))
+summary(vs, stats = c('auc', 'elpd'))
+ggsave(paste(save_path,  'Bayes-varSelect-AUC-ELPD.pdf',sep = ''), device = 'pdf',
+       width = 20, height = 20, units = 'cm', dpi = 300)
+
+proj_summary = summary(vs, stats = c('auc', 'elpd'))
+
+#EVALUATE REDUCED VARIABLE MODEL
+#number of terms to use #default alpha is 0.32 (68%) so variables in 1SD
+proj <- project(vs, nv = nv ,seed = 123456,ns = 2000)
+
+# Visualise the projected most relevant variables
+posterior_summary(proj)
+mcmc_areas(as.matrix(proj), , prob = 0.95, prob_outer = 1) + coord_cartesian(xlim = c(-3, 3))
+
+#We make predictions with the projected submodels. For point estimates we can use method 
+#proj_predict. Test inputs can be provided using the keyword newdata. 
+#It also the test targets ynew are provided in newdata, then the function evaluates
+#the log predictive density at these points. For instance, the following computes 
+#the mean of the predictive distribution and evaluates the log density at the training 
+#points using the most relevant variables.
+
+#eval internal training data performance
+pred <- proj_predict(vs, newdata = train.data, nterms = nv)
+y = train.data$outcome
+ggplot() + geom_point(aes(x = colMeans(pred), y = y)) +
+  labs(x = "train prediction", y = "y")
+pr <- as.integer(colMeans(pred) >= 0.5)
+# posterior classification accuracy
+bayes_train_acc <- mean(xor(pr,as.integer(y == 0)))
+# posterior balanced classification accuracy
+bayes_train_acc <- (mean(xor(pr[y == 0] > 0.5,as.integer(y[y == 0]))) +
+                       mean(xor(pr[y == 1] < 0.5,as.integer(y[y == 1]))))/2
+# save ROC curve
+roccurve1 <- roc(outcome ~ c( colMeans(pred)), data = train.data)
+auc1 <- auc(roccurve1)
+
+ggroc(roccurve2, legacy.axes = T) +
+  geom_abline(slope = 1 ,intercept = 0) + # add identity line
+  theme(
+    panel.background = element_blank(), 
+    axis.title.x = element_text(size = 18, face = 'bold'),
+    axis.title.y = element_text(size = 18, face = 'bold'),
+    panel.border = element_rect(size = 2, fill = NA), 
+    axis.text.x = element_text(size = 14, face = 'bold'),
+    axis.text.y = element_text(size = 14, face = 'bold')) +
+  xlab('1 - Specificity') +
+  ylab('Sensitivity') +
+  scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
+  scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) +
+  geom_text(x = 0.1, y = 1, colour = "black", size = 6,
+            label = paste('AUC: ', sprintf("%0.2f",auc1), sep = '') )
+
+SelectedData_str ='Train_FullTrainData_Test_TrainData'
+ggsave(paste(save_path, 'Model_BAYES_REDUCED', SelectedData_str,'_ROC.pdf', sep = ''),device = 'pdf',
+       width = 20, height = 20, units = 'cm', dpi = 300)
+
+#how to get CIs without running variable selection each time? This runs reduced
+#var model on 80% slices of data but this isn't right - underestimates variance
+#auc_smp=vector()
+#for (i in 1:100) {
+#  sidx=sample(1:round(nrow(train.data)*0.8))
+#  pred <- proj_predict(vs, newdata = train.data[sidx, ], nterms = nv)
+#  roccurve1 <- roc(outcome ~ c( colMeans(pred)), data =  train.data[sidx, ])
+#  auc1 <- auc(roccurve1)
+#  auc_smp[i] = auc1
+#}
+
+#eval external validation data performance
+pred <- proj_predict(vs, newdata = test.data, nterms = nv)
+y = test.data$outcome
+ggplot() + geom_point(aes(x = colMeans(pred), y = y)) +
+  labs(x = "test prediction", y = "y")
+pr <- as.integer(colMeans(pred) >= 0.5)
+# posterior classification accuracy
+bayes_test_acc <- mean(xor(pr,as.integer(y == 0)))
+# posterior balanced classification accuracy
+bayes_test_acc <- (mean(xor(pr[y == 0] > 0.5,as.integer(y[y == 0]))) +
+                       mean(xor(pr[y == 1] < 0.5,as.integer(y[y == 1]))))/2
+
+# save ROC curve
+roccurve2 <- roc(outcome ~ c( colMeans(pred)), data = test.data)
+auc2 <- auc(roccurve2)
+
+ggroc(roccurve2, legacy.axes = T) +
+  geom_abline(slope = 1 ,intercept = 0) + # add identity line
+  theme(
+    panel.background = element_blank(), 
+    axis.title.x = element_text(size = 18, face = 'bold'),
+    axis.title.y = element_text(size = 18, face = 'bold'),
+    panel.border = element_rect(size = 2, fill = NA), 
+    axis.text.x = element_text(size = 14, face = 'bold'),
+    axis.text.y = element_text(size = 14, face = 'bold')) +
+  xlab('1 - Specificity') +
+  ylab('Sensitivity') +
+  scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
+  scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) +
+  geom_text(x = 0.1, y = 1, colour = "black", size = 6,
+            label = paste('AUC: ', sprintf("%0.2f",auc2), sep = '') )
+
+SelectedData_str ='Train_FullTrainData_Test_TestData'
+ggsave(paste(save_path, 'Model_BAYES_REDUCED', SelectedData_str,'_ROC.pdf', sep = ''),device = 'pdf',
+       width = 20, height = 20, units = 'cm', dpi = 300)
+
+#-----Test Bayesian Logistic Regression-------------------
+
