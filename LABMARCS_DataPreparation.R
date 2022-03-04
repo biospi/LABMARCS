@@ -296,13 +296,15 @@ for (i in 1:dim(total)[1]) {
 total['CriticalDate'] = critDate[,1]
 total['CriticalDateType'] = critDate[,2]
 
-#exclude cases where already admitted and covid was detected on day of discharge 
-total = total[ critDate[,2] != 5, ]
+#We could exclude cases where already admitted and covid was detected on day of discharge 
+#Maha felt suymptoms/labs must be mild to get discharged so despite brief time they
+#are still valid
+#total = total[ critDate[,2] != 5, ]
+
 
 #define 
 ids_train = total[total$Site != 'Weston','ID']
 ids_test = total[total$Site == 'Weston','ID']
-
 
 
 ### -- Load variable data ---
@@ -1569,15 +1571,15 @@ rm(FBCNeutr2)
 #----Example plot for Paper
 #Note FBCNeutr_train/test _ls is in loop above to save values after filtering patients
 
-#FBCNeutr_ls = FBCNeutr_train_ls #generates training data histogram
-#label_txt = 'Training Data'
-#ypl = 60
-#xl = ''
+FBCNeutr_ls = FBCNeutr_train_ls #generates training data histogram
+label_txt = 'Training Data'
+ypl = 60
+xl = ''
 
-FBCNeutr_ls = FBCNeutr_test_ls #generates testing data histogram
-label_txt = 'Validation Data'
-ypl = 30
-xl = 'Neutrophil Count x 10^9/L'
+#FBCNeutr_ls = FBCNeutr_test_ls #generates testing data histogram
+#label_txt = 'Validation Data'
+#ypl = 30
+#xl = 'Neutrophil Count x 10^9/L'
 
 #First convert to tibble and plot histogram outside loop
 FBCNeutr_df = tibble(Neutrophil = sapply(FBCNeutr_ls,c))

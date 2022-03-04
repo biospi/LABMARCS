@@ -1023,38 +1023,6 @@ Outliers, positive kurtosis, positive skew
 
 ```{r}
 
-#----Example plot for Paper
-
-#First convert to tibble and plot histogram outside loop
-FBCNeutr_df = tibble(sapply(FBCNeutr_ls,c))
-colnames(FBCNeutr_df) = 'Neutrophil Count'
-hist.data.frame(FBCNeutr_df)
-
-#Example Biomarker Plot for Paper
-ypl = 70
-spl = 5
-qplot(data = FBCNeutr_df, x = `Neutrophil Count`, geom = 'histogram',  fill = I("lightblue"), 
-      col = I("darkblue"), binwidth = 0.5, ylab = 'Frequency') +
-  labs(subtitle = "") + #Normal reference range = 2-7.5 
-  geom_histogram(color = "darkblue", fill = "lightblue", binwidth = 0.5) + 
-  geom_vline(xintercept = 0.5,colour = "red") +
-  geom_vline(xintercept = 1,colour = "red") +
-  geom_vline(xintercept = 2,colour = "red") +
-  geom_vline(xintercept = 7.5,colour = "red") +
-  annotate("text", label = "Severe", x = 0.15, y = ypl, size = spl, 
-           colour = "black", angle = 90, hjust = 0 , fontface = "bold") +
-  annotate("text", label = "Moderate", x = .75, y = ypl, size = spl, 
-           colour = "black", angle = 90, hjust = 0, fontface = "bold") +
-  annotate("text", label = "Mild", x = 1.5, y = ypl, size = spl, 
-           colour = "black", angle = 90, hjust = 0, fontface = "bold") +
-  annotate("text", label = "Normal", x = 4.75, y = ypl + 50, size = spl, 
-           colour = "black", fontface = "bold") +
-  annotate("text", label = "Severe", x = 10, y = ypl, size = spl, 
-           colour = "black", hjust = 0, fontface = "bold") +
-  theme(text = element_text(size = 30))           
-
-ggsave(paste(work_path,'BiomarkerDistribution_Neutrophil.pdf',sep=''), dpi = 320 )
-#-------------------------------
 
 
 ggplot(data = FBCNeutr, aes(x=Neutrophils)) +
