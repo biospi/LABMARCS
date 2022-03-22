@@ -21,14 +21,8 @@ library('Hmisc')
 # manually selecting the dateRange and readingwanted variables.
 # Location of Rscripts & save intermediate processed files
 
-if (!exists('work_path')) {
-  work_path <- 'C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/brian/'
-}
+work_path <- ''
 
-# Load in original data files
-if (!exists('data_path')) {
-  data_path <- paste(work_path, 'data/', sep = '')
-}
 
 #Set needed variables if we are not running LABMARCS_Analysis_Batch.R
 if (!exists('BatchAnalysisOn')) { 
@@ -51,7 +45,7 @@ print(paste("Reading wanted: ", readingwanted))
 ## Outcome data
 
 ### NBT Outcomes
-
+data_path <- ''
 setwd(data_path)
 
 NBT_outcomes <- read.csv("NBT_outcomes.csv")
@@ -452,6 +446,10 @@ BNP2 <- data.frame(ID = character(),
 
 commonIDs <- intersect(total$ID,BNP$ID)
 
+
+BNP_train_ls = list()
+BNP_test_ls = list()
+
 for (id in unique(commonIDs)) {
   # Get all dates for this ID and variable
   idDates = BNP[BNP$ID == id,]$date
@@ -564,7 +562,18 @@ for (id in unique(commonIDs)) {
     # Add this 
     BNP2 <- BNP2 %>% add_row(ID = id,BNP_val = value)
   }
+  if (sum(id == ids_train) == 1) {
+    #Append individual readings for Manuscript Plot
+    BNP_train_ls = append(BNP_train_ls,all_values)
+  } else {
+    BNP_test_ls = append(BNP_test_ls,all_values)
+  }
 }
+
+write("BNP","BNP_train_list.csv", append=TRUE, ncolumns=1)
+lapply(BNP_train_ls, write, "BNP_train_list.csv", append=TRUE, ncolumns=1)
+write("BNP","BNP_test_list.csv", append=TRUE, ncolumns=1)
+lapply(BNP_test_ls, write, "BNP_test_list.csv", append=TRUE, ncolumns=1)
 
 BNP <- BNP2
 rm(BNP2)
@@ -657,6 +666,9 @@ DDM2 <- data.frame(ID = character(),
                   DDM_val = character())
 commonIDs <- intersect(total$ID,DDM$ID)
 
+DDM_train_ls = list()
+DDM_test_ls = list()
+
 for (id in unique(commonIDs)) {
   # Get all dates for this ID and variable
   idDates = DDM[DDM$ID == id,]$date
@@ -728,7 +740,20 @@ for (id in unique(commonIDs)) {
     # Add this 
     DDM2 <- DDM2 %>% add_row(ID = id,DDM_val = value)
   }
+  #Manuscript Plot - Filter by ids_train or ids_test to make selective histogram
+  if (sum(id == ids_train) == 1) {
+    #Append individual readings for Manuscript Plot
+    DDM_train_ls = append(DDM_train_ls,all_values)
+  } else {
+    DDM_test_ls = append(DDM_test_ls,all_values)
+  }
 }
+
+write("DDM","DDM_train_list.csv", append=TRUE, ncolumns=1)
+lapply(FER_train_ls, write, "DDM_train_list.csv", append=TRUE, ncolumns=1)
+write("DDM","DDM_test_list.csv", append=TRUE, ncolumns=1)
+lapply(FER_test_ls, write, "DDM_test_list.csv", append=TRUE, ncolumns=1)
+
 
 DDM <- DDM2
 rm(DDM2)
@@ -792,9 +817,11 @@ for (id in (unique(commonIDs))) {
 eGFR <- eGFR2
 rm(eGFR2)
 
-
-
 #### FER - Ferritin
+FER_train_ls = list()
+FER_test_ls = list()
+
+
 FER <- read.csv(file("FER.csv"))
 FER$Date.Booked.In = as.Date(FER$Date.Booked.In, format="%d/%m/%Y")
 FER = FER %>% 
@@ -865,7 +892,19 @@ for (id in unique(commonIDs)){
     # Add this 
     FER2 <- FER2 %>% add_row(ID=id,FER_val=value)
   }
+  #Manuscript Plot - Filter by ids_train or ids_test to make selective histogram
+  if (sum(id == ids_train) == 1) {
+    #Append individual readings for Manuscript Plot
+    FER_train_ls = append(FER_train_ls,all_values)
+  } else {
+    FER_test_ls = append(FER_test_ls,all_values)
+  }
 }
+
+write("Ferritin","FER_train_list.csv", append=TRUE, ncolumns=1)
+lapply(FER_train_ls, write, "FER_train_list.csv", append=TRUE, ncolumns=1)
+write("Ferritin","FER_test_list.csv", append=TRUE, ncolumns=1)
+lapply(FER_test_ls, write, "FER_test_list.csv", append=TRUE, ncolumns=1)
 
 FER <- FER2
 rm(FER2)
@@ -1567,6 +1606,10 @@ for (id in (unique(commonIDs))){
 FBCNeutr <- FBCNeutr2
 rm(FBCNeutr2)
 
+write("Neutrophils","FBCNeutr_train_list.csv", append=TRUE, ncolumns=1)
+lapply(FBCNeutr_train_ls, write, "FBCNeutr_train_list.csv", append=TRUE, ncolumns=1)
+write("Neutrophils","FBCNeutr_test_list.csv", append=TRUE, ncolumns=1)
+lapply(FBCNeutr_test_ls, write, "FBCNeutr_test_list.csv", append=TRUE, ncolumns=1)
 
 #----Example plot for Paper
 #Note FBCNeutr_train/test _ls is in loop above to save values after filtering patients
@@ -1605,7 +1648,9 @@ qplot(data = FBCNeutr_df, x = `Neutrophil`, geom = 'histogram',  fill = I("light
            colour = "black", hjust = 0) +
   theme(text = element_text(size = 20)) + coord_cartesian(xlim = c(0, 35))
 
-ggsave(paste(work_path,label_txt,'.BiomarkerDistribution_Neutrophil.pdf', sep = ''), dpi = 320 )
+ggsave('Data.BiomarkerDistribution_Neutrophil.pdf', dpi = 320 )
+
+
 #-------------------------------
 
 
@@ -2363,10 +2408,10 @@ fn <- paste(work_path, 'totalBinary', as.character(dateRange),
             readingwanted_str, sep = '')
 
 tmp = missingData %>% ff_glimpse()
-write.csv(tmp[2], file = paste(fn,'.missing_data_summary.csv', sep = ''))
+write.csv(tmp[2], file = 'totalBinary31missing_data_summary.csv')
 
 missingData %>% missing_plot()
-ggsave(paste(fn,'.missing_values_map.pdf', sep = ''),device = 'pdf',
+ggsave(('totalBinary31_missing_values_map.pdf'),device = 'pdf',
        width = 20, height = 20, units = 'cm', dpi = 300)
 
 all_columns <- c("BE_val","BNP_val","CRP_val","DDM_val","eGFR_val","FER_val",
@@ -2389,4 +2434,5 @@ tnt_columns <- setdiff(all_columns, imputed_columns)
 # Replace NA with "Test not taken"
 totalBinary[tnt_columns][is.na(totalBinary[tnt_columns])] <- "Test not taken"
 
-write.csv(x = totalBinary, file = paste(fn,'.csv', sep = ''))
+write.csv(x = totalBinary, file = 'totalBinary31.csv')
+
