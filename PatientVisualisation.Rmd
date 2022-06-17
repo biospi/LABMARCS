@@ -1,0 +1,1867 @@
+---
+title: An R Markdown document converted from "C:/Users/gq19765/OneDrive - University
+  of Bristol/Documents/ICU PhD/LABMARCS/Data/ImprovedVisualisation.ipynb"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = "C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/source/data/")
+
+library(ggplot2)
+library(hrbrthemes)
+library(tidyverse)
+library(plotly)
+library(BBmisc)
+library(scales)
+library(dplyr)
+library(naniar)
+library(gridExtra)
+library(knitr)
+library(moments)
+library(formattable)
+library(IRdisplay)
+library(repr)
+```
+
+## Load in data files
+### Outcome data
+#### NBT Outcomes
+
+```{r}
+data_dir <- 'C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/source/data/'
+setwd(data_dir)
+NBT_outcomes <- read.csv(file("NBT_outcomes.csv"))
+NBT_outcomes = NBT_outcomes %>% 
+  rename(
+    admissionDate = admission_date,
+  )
+NBT_outcomes$admissionDate = as.Date(NBT_outcomes$admissionDate, format="%d/%m/%Y")
+NBT_outcomes = NBT_outcomes %>% 
+  rename(
+    dischargeDate = discharge_date,
+  )
+NBT_outcomes$dischargeDate = as.Date(NBT_outcomes$dischargeDate, format="%d/%m/%Y")
+NBT_outcomes_deaths = NBT_outcomes %>%
+  filter(DischargeOutcomeDesc == "Patient Died")
+NBT_outcomes_deaths$deathDate = NBT_outcomes_deaths$dischargeDate
+NBT_outcomes <- merge(NBT_outcomes,NBT_outcomes_deaths,all=TRUE)
+NBT_outcomes$ITU_Start = as.Date(NBT_outcomes$ITU_Start, format="%d/%m/%Y")
+NBT_outcomes$ITU_End = as.Date(NBT_outcomes$ITU_End, format="%d/%m/%Y")
+NBT_outcomes2 = NBT_outcomes %>% select(uob_ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+#### UHB Outcomes
+
+```{r}
+UHB_outcomes1 <- read.csv(file("UHB_outcomes1.ICU_Update.csv"))
+UHB_outcomes1 = UHB_outcomes1 %>% 
+  rename(
+    admissionDate = attend_date,
+  )
+UHB_outcomes1$admissionDate = as.Date(UHB_outcomes1$admissionDate, format="%d/%m/%Y")
+UHB_outcomes1$dischargeDate = as.Date(UHB_outcomes1$admissionDate + as.integer(UHB_outcomes1$hospital_length_of_stay))
+UHB_outcomes1 = UHB_outcomes1 %>% 
+  rename(
+    deathDate = fu_death_date,
+  )
+UHB_outcomes1$deathDate = as.Date(UHB_outcomes1$deathDate, format="%d/%m/%Y")
+UHB_outcomes1$ITU_Start <- as.Date(NA)
+UHB_outcomes1$ITU_End <- as.Date(NA)
+UHB_outcomes12 = UHB_outcomes1 %>% select(uob_ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+
+UHB_outcomes2 <- read.csv(file("UHB_outcomes2.ICU_Update.csv"))
+UHB_outcomes2 = UHB_outcomes2 %>% 
+  rename(
+    admissionDate = attend_dte,
+  )
+UHB_outcomes2$admissionDate = as.Date(UHB_outcomes2$admissionDate, format="%d/%m/%Y")
+UHB_outcomes2 = UHB_outcomes2 %>% 
+  rename(
+    dischargeDate = outcome_dte,
+  )
+UHB_outcomes2$dischargeDate = as.Date(UHB_outcomes2$dischargeDate, format="%d/%m/%Y")
+UHB_outcomes2_deaths = UHB_outcomes2 %>%
+  filter(outcome == 3)
+UHB_outcomes2_deaths$deathDate = UHB_outcomes2_deaths$dischargeDate
+UHB_outcomes2 <- merge(UHB_outcomes2,UHB_outcomes2_deaths,all=TRUE)
+UHB_outcomes2$ITU_Start <- as.Date(NA)
+UHB_outcomes2$ITU_End <- as.Date(NA)
+UHB_outcomes22 = UHB_outcomes2 %>% select(uob_ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+#### Weston Outcomes
+
+```{r}
+WestonOutcomes <- read.csv(file("Weston.Outcomes.csv"))
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    admissionDate = Admission.date,
+  )
+WestonOutcomes$admissionDate = as.Date(WestonOutcomes$admissionDate, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    dischargeDate = Discharge.date,
+  )
+WestonOutcomes$dischargeDate = as.Date(WestonOutcomes$dischargeDate, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    ITU_Start = ICU.Admission.Date
+  )
+WestonOutcomes$ITU_Start = as.Date(WestonOutcomes$ITU_Start, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    ITU_End = ICU.Discharge.Date
+  )
+WestonOutcomes$ITU_End = as.Date(WestonOutcomes$ITU_End, format="%d/%m/%Y")
+WestonOutcomes = WestonOutcomes %>% 
+  rename(
+    deathDate = Date.of.Death
+  )
+WestonOutcomes$deathDate = as.Date(WestonOutcomes$deathDate, format="%d/%m/%Y")
+WestonOutcomes2 = WestonOutcomes %>% select(uob_ID,admissionDate,dischargeDate,ITU_Start,ITU_End,deathDate)
+```
+
+### Merge Outcome data
+
+```{r}
+## Demographics Table
+dem <- read.csv(file("masterlist.update.csv"))
+dem <- dem %>%
+  rename(Age = agecat) %>%
+  distinct(uob_ID, .keep_all = TRUE) %>%
+  dplyr::select(uob_ID,Gender,Age)
+
+# Merge outcomes data
+totalOutcomes <- rbind(UHB_outcomes12,UHB_outcomes22,NBT_outcomes2,WestonOutcomes2) # NBT Outcomes must be excluded as inconsistent
+totalOutcomes$deathDate = as.Date(totalOutcomes$deathDate, format="%d/%m/%Y")
+totalOutcomes$ITU_Start = as.Date(totalOutcomes$ITU_Start, format="%d/%m/%Y")
+totalOutcomes$ITU_End = as.Date(totalOutcomes$ITU_End, format="%d/%m/%Y")
+totalOutcomes$dischargeDate = as.Date(totalOutcomes$dischargeDate, format="%d/%m/%Y")
+```
+
+### Load variable data
+#### BE - Bicarbonate Excess
+
+```{r}
+BE <- read.csv(file("BE.csv"))
+BE$Date.Booked.In = as.Date(BE$Date.Booked.In, format="%d/%m/%Y")
+BE = BE %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BE = BE %>%
+  rename(
+    BE_val = Numeric.Result
+  )
+```
+
+#### BNP - B-type natriuretic peptide
+
+```{r}
+BNP <- read.csv(file("BNP.csv"))
+BNP$Date.Booked.In = as.Date(BNP$Date.Booked.In, format="%d/%m/%Y")
+BNP = BNP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+BNP = BNP %>%
+  rename(
+    BNP_val = Numeric.Result
+  )
+BNP_transform <- BNP
+```
+
+#### CRP - C-Reactive Protein
+
+```{r}
+CRP <- read.csv(file("CRP.csv"))
+CRP$Date.Booked.In = as.Date(CRP$Date.Booked.In, format="%d/%m/%Y")
+CRP = CRP %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+CRP = CRP %>%
+  rename(
+    CRP_val = Numeric.Result
+  )
+```
+
+#### CovidCT - Cycle Threshold (CT) value of PCR for COVID
+
+```{r}
+CovidCT <- read.csv(file("CovidCT.csv"))
+CovidCT['Measure']='CovidCT'
+CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
+CovidCT = CovidCT %>% 
+  rename(
+    date = Specimen.Date,
+  )
+```
+
+#### DDM - D-Dimer 
+
+```{r}
+DDM <- read.csv(file("DDM.csv"))
+DDM$Date.Booked.In = as.Date(DDM$Date.Booked.In, format="%d/%m/%Y")
+DDM = DDM %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+DDM = DDM %>%
+  rename(
+    DDM_val = Numeric.Result
+  )
+```
+
+#### eGFR - Estimated Glomerular Filtration Rate
+
+```{r}
+eGFR <- read.csv(file("eGFR.csv"))
+eGFR$Date.Booked.In = as.Date(eGFR$Date.Booked.In, format="%d/%m/%Y")
+eGFR = eGFR %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+eGFR = eGFR %>%
+  rename(
+    eGFR_val = Numeric.Result
+  )
+```
+
+#### FER - Ferritin
+
+```{r}
+FER <- read.csv(file("FER.csv"))
+FER$Date.Booked.In = as.Date(FER$Date.Booked.In, format="%d/%m/%Y")
+FER = FER %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+FER = FER %>%
+  rename(
+    FER_val = Numeric.Result
+  )
+```
+
+#### Fib - Fibrinogen
+
+```{r}
+fib <- read.csv(file("fib.csv"))
+fib$Date.Booked.In = as.Date(fib$Date.Booked.In, format="%d/%m/%Y")
+fib = fib %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+fib = fib %>%
+  rename(
+    fib_val = Numeric.Result
+  )
+```
+
+#### Glucose
+
+```{r}
+Glucose <- read.csv(file("Glucose.csv"))
+Glucose$Date.Booked.In = as.Date(Glucose$Date.Booked.In, format="%d/%m/%Y")
+Glucose = Glucose %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+Glucose = Glucose %>%
+  rename(
+    Glucose_val = Numeric.Result
+  )
+```
+
+#### HB - Hemoglobin
+
+```{r}
+HB <- read.csv(file("HB.csv"))
+HB$Date.Booked.In = as.Date(HB$Date.Booked.In, format="%d/%m/%Y")
+HB = HB %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+HB = HB %>%
+  rename(
+    HB_val = Numeric.Result
+  )
+```
+
+#### HBA1c - glycated haemoglobin
+
+```{r}
+HBA1c <- read.csv(file("HBA1c.csv"))
+HBA1c$Date.Booked.In = as.Date(HBA1c$Date.Booked.In, format="%d/%m/%Y")
+HBA1c = HBA1c %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+HBA1c = HBA1c %>%
+  rename(
+    HBA1c_val = Numeric.Result
+  )
+```
+
+#### LDH - Lactate dehydrogenase
+
+```{r}
+LDH <- read.csv(file("LDH.csv"))
+LDH$Date.Booked.In = as.Date(LDH$Date.Booked.In, format="%d/%m/%Y")
+LDH = LDH %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+LDH = LDH %>%
+  rename(
+    LDH_val = Numeric.Result
+  )
+```
+
+#### PCT - Procalcitonin 
+
+```{r}
+PCT <- read.csv(file("PCT.csv"))
+PCT$Date.Booked.In = as.Date(PCT$Date.Booked.In, format="%d/%m/%Y")
+PCT = PCT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+PCT = PCT %>%
+  rename(
+    PCT_val = Numeric.Result
+  )
+```
+
+#### PLT - Platelet Count
+
+```{r}
+PLT <- read.csv(file("PLT.csv"))
+PLT$Date.Booked.In = as.Date(PLT$Date.Booked.In, format="%d/%m/%Y")
+PLT = PLT %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+PLT = PLT %>%
+  rename(
+    PLT_val = Numeric.Result
+  )
+```
+
+#### Trig - Triglycerides
+
+```{r}
+trig <- read.csv(file("trig.csv"))
+trig$Date.Booked.In = as.Date(trig$Date.Booked.In, format="%d/%m/%Y")
+trig = trig %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+trig = trig %>%
+  rename(
+    trig_val = Numeric.Result
+  )
+```
+
+#### Trop - Troponin
+
+```{r}
+trop <- read.csv(file("trop.csv"))
+trop$Date.Booked.In = as.Date(trop$Date.Booked.In, format="%d/%m/%Y")
+trop = trop %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+trop = trop %>%
+  rename(
+    trop_val = Numeric.Result
+  )
+```
+
+#### Vir - Virology
+
+```{r}
+Vir <- read.csv(file("Vir.csv"))
+Vir['Measure']='Vir'
+Vir$Sample.Date = as.Date(Vir$Sample.Date, format="%d/%m/%Y")
+Vir = Vir %>% 
+  rename(
+    date = Sample.Date,
+  )
+Vir = Vir %>% 
+  rename(
+    Adenovirus = Adenovirus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Human_Metapneumovirus = Human.metapneumovirus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Influenza_A = Influenza.A..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Influenza_B = Influenza.B..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_1 = Parainfluenza.Type.1..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_2 = Parainfluenza.Type.2..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_3 = Parainfluenza.Type.3..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Parainfluenza_Type_4 = Parainfluenza.Type.4..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Respiratory_Syncytial_Virus = Respiratory.Syncytial.Virus..PCR.,
+  )
+Vir = Vir %>% 
+  rename(
+    Rhinovirus = Rhinovirus..PCR.,
+  )
+```
+
+#### FBC - Full Blood Count
+Made up of:
+* Lymphocytes
+* Neutrophils
+* White Cell Count
+
+```{r}
+FBC <- read.csv(file("FBC.csv"))
+FBC$Date.Booked.In = as.Date(FBC$Date.Booked.In, format="%d/%m/%Y")
+FBC = FBC %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+```
+
+Split off Lymphocytes:
+
+```{r}
+FBCLymph = FBC %>% select(uob_ID,date,Result.Lymphocytes)
+FBCLymph = FBCLymph %>% 
+  rename(
+    Lymphocytes = Result.Lymphocytes,
+  )
+```
+
+Split off Neutrophils:
+
+```{r}
+FBCNeutr = FBC %>% select(uob_ID,date,Result.Neutrophils)
+FBCNeutr = FBCNeutr %>% 
+  rename(
+    Neutrophils = Result.Neutrophils,
+  )
+```
+
+Split off White Cell Count:
+
+```{r}
+FBCWCC = FBC %>% select(uob_ID,date,Result.WCC)
+FBCWCC = FBCWCC %>% 
+  rename(
+    WCC = Result.WCC,
+  )
+```
+
+Split off Neutrophil to Lymphocyte Ratio
+
+```{r}
+FBCNLR = FBC %>% select(uob_ID,date,NLR)
+FBCNLR = FBCNLR %>% 
+  rename(
+    NLR_val = NLR,
+  )
+```
+
+#### CovidCT - Cycle Threshold (CT) value of PCR for COVID
+
+```{r}
+CovidCT <- read.csv(file("CovidCT.csv"))
+CovidCT['Measure']='CovidCT'
+CovidCT$Specimen.Date = as.Date(CovidCT$Specimen.Date, format="%d/%m/%Y")
+CovidCT = CovidCT %>% 
+  rename(
+    date = Specimen.Date,
+  )
+```
+
+#### Clot
+Made up of:
+* APTT - Activated Partial Thromboplastin Time
+* PT - Prothrombin Time
+
+```{r}
+Clot <- read.csv(file("Clot.csv"))
+Clot$Date.Booked.In = as.Date(Clot$Date.Booked.In, format="%d/%m/%Y")
+Clot = Clot %>% 
+  rename(
+    date = Date.Booked.In,
+  )
+```
+
+Split off APTT:
+
+```{r}
+ClotAPTT = Clot %>% select(uob_ID,date,APTT)
+ClotAPTT = ClotAPTT %>% 
+  rename(
+    APTT_val = APTT,
+  )
+```
+
+Split off PT:
+
+```{r}
+ClotPT = Clot %>% select(uob_ID,date,PT)
+ClotPT = ClotPT %>% 
+  rename(
+    PT_val = PT,
+  )
+```
+
+#### Antigen 
+
+```{r}
+Antigen <- read.csv(file("Antigen.csv"))
+Antigen = Antigen %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### BC
+
+```{r}
+BC <- read.csv(file("BC.csv"))
+BC['Measure']='BC'
+BC$Date.of.Specimen = as.Date(BC$Date.of.Specimen, format="%d/%m/%Y")
+BC = BC %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### Resp
+
+```{r}
+Resp <- read.csv(file("Resp.csv"))
+Resp['Measure']='Resp'
+Resp$Date.of.Specimen = as.Date(Resp$Date.of.Specimen, format="%d/%m/%Y")
+Resp = Resp %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### Urine
+
+```{r}
+Urine <- read.csv(file("Urine.csv"))
+Urine['Measure']='Urine'
+Urine$Date.of.Specimen = as.Date(Urine$Date.of.Specimen, format="%d/%m/%Y")
+Urine = Urine %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+```
+
+#### poctLAC - Point of Care Testing - Lactate
+
+```{r}
+poctLAC <- read.csv(file("poctLAC.csv"))
+#Format date
+poctLAC$Date.of.Specimen = as.Date(poctLAC$Date.of.Specimen, format="%d/%m/%Y")
+poctLAC = poctLAC %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+poctLAC = poctLAC %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+poctLAC = poctLAC %>%
+  rename(
+    poctLAC_val = Numeric.Result
+  )
+#Combine date and time
+poctLAC$dateTime = as.POSIXct(paste(poctLAC$date, poctLAC$time), format="%Y-%m-%d %H:%M:%S")
+# Select relevant variables
+```
+
+#### poctO2 - Point of Care Testing - O2 and CO2
+Made up of:
+* O2
+* CO2
+
+```{r}
+poctO2 <- read.csv(file("poctO2.csv"))
+```
+
+O2:
+
+```{r}
+O2 <- poctO2 %>%
+  filter(Test.Desc == "Arterial pO2")
+O2$Date.of.Specimen = as.Date(O2$Date.of.Specimen, format="%d/%m/%Y")
+O2 = O2 %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+O2 = O2 %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+O2 = O2 %>% 
+  rename(
+    O2_val = Numeric.Result,
+  )
+#Combine date and time
+O2$dateTime = as.POSIXct(paste(O2$date, O2$time), format="%Y-%m-%d %H:%M:%S")
+```
+
+CO2:
+
+```{r}
+CO2 <- poctO2 %>%
+  filter(Test.Desc == "Arterial pCO2")
+#Format date
+CO2$Date.of.Specimen = as.Date(CO2$Date.of.Specimen, format="%d/%m/%Y")
+CO2 = CO2 %>% 
+  rename(
+    date = Date.of.Specimen,
+  )
+CO2 = CO2 %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+CO2 = CO2 %>% 
+  rename(
+    CO2_val = Numeric.Result,
+  )
+#Combine date and time
+CO2$dateTime = as.POSIXct(paste(CO2$date, CO2$time), format="%Y-%m-%d %H:%M:%S")
+```
+
+#### poctpH - Point of Care Testing - pH
+
+```{r}
+poctpH <- read.csv(file("poctpH.csv"))
+#Format date
+poctpH$Date.of.Specimen = as.Date(poctpH$Date...Time.of.Specimen, format="%d/%m/%Y")
+poctpH = poctpH %>% 
+  rename(
+    date = Date...Time.of.Specimen,
+  )
+poctpH = poctpH %>% 
+  rename(
+    time = Time.of.Specimen,
+  )
+poctpH = poctpH %>% 
+  rename(
+    poctpH_val = Numeric.Result,
+  )
+#Combine date and time
+poctpH$dateTime = as.POSIXct(paste(poctpH$date, poctpH$time), format="%Y-%m-%d %H:%M:%S")
+```
+
+## AvonCap
+
+```{r}
+AvonCap <- read.csv(file("AvonCap.Update.csv"))
+AvonCap = AvonCap %>%
+    rename(
+        Community_Acquired_Pneumonia_radiologically_confirmed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...radiologically.confirmed.,
+        Community_Acquired_Pneumonia_clinically_confirmed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...clinically.confirmed..but.not.on.radiology..,
+        Community_Acquired_Pneumonia_no_radiology_performed = Final.Standard.of.Care.LRTD.related.diagnosis..choice.CAP...no.radiology.performed.,
+        Acute_bronchitis = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Acute.bronchitis.,
+        Exacerbation_of_COPD = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Exacerbation.of.COPD.,
+        Empyema_lung_abscess = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Empyema.lung.abscess.,
+        LRTI_not_further_specified = Final.Standard.of.Care.LRTD.related.diagnosis..choice.LRTI...not.further.specified.,
+        Congestive_heart_failure = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Congestive.heart.failure.,
+        Non_infectious_process = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Non.infectious.process.,
+        Non_LRTD_infection_related_diagnosis = Final.Standard.of.Care.LRTD.related.diagnosis..choice.Non.LRTD.infection.related.diagnosis.,
+        Other_LRTI_specified = Other.LRTI.Specified,
+        NYHA_Heart_failure = NYHA...Heart.Failure..nbsp.,
+        CRB65_Score = CRB65.Score,
+        NEWS2_Score = NEWS.2.Score,
+        Respiratory_Disease_None = Respiratory.Disease..choice.None.,
+        COPD = Respiratory.Disease..choice.COPD..Chronic.Obstructive.Pulmonary.Disease.Emphysema..,
+        Asthma = Respiratory.Disease..choice.Asthma.,
+        Bronchiectasis = Respiratory.Disease..choice.Bronchiectasis.,
+        Pulmonary_Fibrosis_Interstitial_Lung_Disease = Respiratory.Disease..choice.Pulmonary.Fibrosis.Interstitial.Lung.Disease.,
+        Respiratory_Disease_other = Respiratory.Disease..choice.Other.,
+        Chronic_heart_disease_none = Chronic.Heart.Disease..choice.None.,
+        Hypertension = Chronic.Heart.Disease..choice.Hypertension.,
+        Atrial_Fibrillation = Chronic.Heart.Disease..choice.Atrial.Fibrillation.,
+        Ischaemic_heart_disease = Chronic.Heart.Disease..choice.Ischaemic.heart.disease.,
+        Heart_failure = Chronic.Heart.Disease..choice.Heart.failure.CCF.,
+        Chronic_heart_disease_other = Chronic.Heart.Disease..choice.Other.,
+        Chronic_Kidney_Disease = Chronic.Kidney.Disease..CKD..Mod.Severe..eGFR..30..Cr.265.umol.L..dialysis..transplantation..uremic.syndrome,
+        Liver_disease = Liver.Disease.Mild...nbsp.cirrhosis.without.portal.HTN..chronic.hepatitis..Mod.Severe...nbsp.cirrhosis.with.portal.HTN.....variceal.bleeding,
+        Diabetes = Diabetes,
+        Cognitive_Impairment_Dementia_none = Cognitive.Impairment.Dementia..choice.None.,
+        Dementia = Cognitive.Impairment.Dementia..choice.Dementia.,
+        Cognitive_impairment = Cognitive.Impairment.Dementia..choice.Cognitive.Impairment.,
+        CVA_Stroke = Cognitive.Impairment.Dementia..choice.CVA..stroke..,
+        TIA_mini_stroke = Cognitive.Impairment.Dementia..choice.TIA..mini.stroke..,
+        Hemiplegiahemiplegia_or_paraplegia = Hemiplegiahemiplegia.or.paraplegia,
+        Peripheral_vascular_disease = Peripheral.Vascular.Disease.Intermittent.claudication..periph..arterial.bypass.for.insufficiency..gangrene..acute.arterial.insufficiency..untreated.aneurysm....6cm..nbsp.,
+        Immunosuppressive_medication = Immunosuppressive.Medication.includes.oral.steroids..biologics..chemotherapy.,
+        Immunodeficiency = Immunodeficiency.eg.SCID..hypogammaglobulinaemia..splenectomy.,
+        Connective_tissue_disease = Connective.Tissue.Disease..SLE..polymyositis..mixed.nbsp.Connective.Tissue.Disease..polymyalgia.rheumatica..moderate.to.severe.Rheumatoid.Arthritis.,
+        HIV_negative_or_not_tested = HIV.status..choice.Negative..no.HIV...or.not.tested.,
+        HIV_positive = HIV.status..choice.HIV.,
+        AIDS = HIV.status..choice.AIDS.,
+        Solid_organ_cancer_malignancy = Solid.Organ.Cancer.Malignancy.Initially.treated.in.the.last.5.years.exclude.non.melanomatous.skin.cancers.and.in.situ.cervical.carcinoma,
+        Haematological_malignancy_leukaemia_none = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.None.,
+        Leukaemia = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.Leukaemia.,
+        Lymphoma = Haematological.Malignancy.Leukaemia...nbsp.CML..CLL..AML..ALL..Polycythaemia.Vera.Lymphoma...nbsp.NHL..Hodgkin.s..WaldenstrÃ.m..multiple.myeloma...choice.Lymphoma.,
+        Organ_transplantation = Organ.Transplantation,
+        Pregnancy_post_partum = Pregnancy.Post.partum,
+        Gastric_Duodenal_Ulcer_disease = Gastric.Duodenal.Ulcer.Disease.Patients.who.have.required.treatment.for.PUD.nbsp.,
+        Rockwood_frailty_score = Rockwood.Frailty.Score,
+        Radiology_result = Radiology.Result
+    )
+```
+
+## Demographics Table
+Age and gender for every individual
+
+```{r}
+ # dem = Vir %>%
+ #   distinct(uob_ID, .keep_all = TRUE)
+ # dem = dem %>%
+ #  select(uob_ID,Gender,Age)
+```
+
+## Distribution transformations
+### BE
+
+```{r}
+BE_transform <- subset(BE, BE_val < 57.5)
+
+ggplot(data = BE_transform, aes(x=BE_val)) +
+  ggtitle("BE distribution") +
+  labs(subtitle="Reference range = 22-29") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.75) + 
+  geom_vline(xintercept=22,colour="red") +
+  geom_vline(xintercept=29,colour="red")
+
+print(paste0("Skewness: ", skewness(BE$BE_val, na.rm = TRUE)))
+```
+
+It seems BE contains outliers, a slight positive-skew, and positive kurtosis
+
+### BNP
+
+```{r}
+ggplot(data = BNP_transform, aes(x=BNP_val)) +
+  ggtitle("BNP distribution") +
+  labs(subtitle="Men under 70: <100pg/ml, Women under 70: <150 pg/ml, All 70yr and over: <300 pg/ml") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1000) + 
+  geom_vline(xintercept=100,colour="red") +
+  geom_vline(xintercept=150,colour="red") + 
+  geom_vline(xintercept=300,colour="red") 
+
+print(paste0("Skewness: ", skewness(BNP$BNP_val, na.rm = TRUE)))
+
+```
+
+Outliers and positive-skew
+
+Log transformation:
+
+```{r}
+BNP_transform <- BNP
+BNP_transform$BNP_val <- log10(BNP_transform$BNP_val)
+
+ggplot(data = BNP_transform, aes(x=BNP_val)) +
+  ggtitle("BNP distribution") +
+  labs(subtitle="Men under 70: <100pg/ml, Women under 70: <150 pg/ml, All 70yr and over: <300 pg/ml") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.1) + 
+  geom_vline(xintercept=log10(100),colour="red") +
+  geom_vline(xintercept=log10(150),colour="red") + 
+  geom_vline(xintercept=log10(300),colour="red") 
+
+print(paste0("Skewness: ", skewness(BNP_transform$BNP_val, na.rm = TRUE)))
+print(paste0("Kurtosis: ", kurtosis(BNP_transform$BNP_val, na.rm = TRUE)))
+
+```
+
+### Clot APTT
+
+```{r}
+ggplot(data = ClotAPTT, aes(x=APTT_val)) +
+  ggtitle("APTT distribution") +
+  labs(subtitle="Reference range = 21-33 seconds") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1.5) +  geom_vline(xintercept=21,colour="red") +
+  geom_vline(xintercept=33,colour="red")
+
+print(paste0("Skewness: ", skewness(ClotAPTT$APTT_val, na.rm = TRUE)))
+print(paste0("Kurtosis: ", kurtosis(ClotAPTT$APTT_val, na.rm = TRUE)))
+```
+
+Positive skew, positive kurtosis
+
+```{r}
+ClotAPTT_transform <- ClotAPTT
+ClotAPTT_transform$APTT_val <- log10(ClotAPTT_transform$APTT_val)
+
+ggplot(data = ClotAPTT_transform, aes(x=APTT_val)) +
+  ggtitle("APTT distribution") +
+  labs(subtitle="Reference range = 21-33 seconds") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.01) +
+  geom_vline(xintercept=log10(21),colour="red") +
+  geom_vline(xintercept=log10(33),colour="red")
+
+print(paste0("Skewness: ", skewness(ClotAPTT_transform$APTT_val, na.rm = TRUE)))
+print(paste0("Kurtosis: ", kurtosis(ClotAPTT_transform$APTT_val, na.rm = TRUE)))
+```
+
+### Clot PT
+
+```{r}
+ggplot(data = ClotPT, aes(x=PT_val)) +
+  ggtitle("PT distribution") +
+  labs(subtitle="Reference range = 9.5-13 seconds") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1) +
+  geom_vline(xintercept=9.5,colour="red") +
+  geom_vline(xintercept=13,colour="red")
+
+print(paste0("Skewness: ", skewness(ClotPT$PT_val, na.rm = TRUE)))
+
+ClotPT_transform <- ClotPT
+ClotPT_transform$PT_val <- log10(ClotPT_transform$PT_val)
+
+
+ggplot(data = ClotPT_transform, aes(x=PT_val)) +
+  ggtitle("PT distribution") +
+  labs(subtitle="Reference range = 9.5-13 seconds") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.01) +
+  geom_vline(xintercept=log10(9.5),colour="red") +
+  geom_vline(xintercept=log10(13),colour="red")
+
+print(paste0("Skewness: ", skewness(ClotPT_transform$PT_val, na.rm = TRUE)))
+
+```
+
+Outliers, positive skew, positive kurtosis
+
+### CO2
+
+```{r}
+ggplot(data = CO2, aes(x=CO2_val)) +
+  ggtitle("CO2 distribution") +
+  labs(subtitle="Reference range = 4.6-6.4 seconds") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.5) +
+  geom_vline(xintercept=4.6,colour="red") +
+  geom_vline(xintercept=6.4,colour="red")
+
+print(paste0("Skewness: ", skewness(CO2$CO2_val, na.rm = TRUE)))
+
+
+CO2_transform <- CO2
+CO2_transform$CO2_val <- log10(CO2_transform$CO2_val)
+
+ggplot(data = CO2_transform, aes(x=CO2_val)) +
+  ggtitle("CO2 distribution") +
+  labs(subtitle="Reference range = 4.6-6.4 seconds") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.02) +
+  geom_vline(xintercept=log10(4.6),colour="red") +
+  geom_vline(xintercept=log10(6.4),colour="red")
+
+print(paste0("Skewness: ", skewness(CO2_transform$CO2_val, na.rm = TRUE)))
+```
+
+Positive skew
+
+### O2
+
+```{r}
+ggplot(data = O2, aes(x=O2_val)) +
+  ggtitle("O2 distribution") +
+  labs(subtitle="Reference range = 11.0-14.4 seconds") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1) +
+  geom_vline(xintercept=11,colour="red") +
+  geom_vline(xintercept=14.4,colour="red")
+
+print(paste0("Skewness: ", skewness(O2$O2_val, na.rm = TRUE)))
+
+O2_transform <- O2
+O2_transform$O2_val <- log10(O2_transform$O2_val)
+
+ggplot(data = O2_transform, aes(x=O2_val)) +
+  ggtitle("O2 distribution") +
+  labs(subtitle="Reference range = 11.0-14.4 seconds") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.02) +
+  geom_vline(xintercept=log10(11),colour="red") +
+  geom_vline(xintercept=log10(14.4),colour="red")
+
+print(paste0("Skewness: ", skewness(O2_transform$O2_val, na.rm = TRUE)))
+```
+
+Positive skew, positive kurtosis, outliers
+
+### CRP
+
+```{r}
+ggplot(data = CRP, aes(x=CRP_val)) +
+  ggtitle("CRP distribution") +
+  labs(subtitle="Reference range = < 6 mg/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=10) +
+  geom_vline(xintercept=6,colour="red")
+
+print(paste0("Skewness: ", skewness(CRP$CRP_val, na.rm = TRUE)))
+
+CRP_transform <- CRP
+CRP_transform$CRP_val <- (CRP_transform$CRP_val)^(1/3)
+
+ggplot(data = CRP_transform, aes(x=CRP_val)) +
+  ggtitle("CRP distribution") +
+  labs(subtitle="Reference range = < 6 mg/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.2) +
+  geom_vline(xintercept=6^(1/3),colour="red")
+
+print(paste0("Skewness: ", skewness(CRP_transform$CRP_val, na.rm = TRUE)))
+```
+
+Positive skew
+
+### DDM
+
+```{r}
+ggplot(data = DDM, aes(x=DDM_val)) +
+  ggtitle("DDM distribution") +
+  labs(subtitle="Reference range (ng/ml) = Age < 60: <500, Age 61-70: <600, Age 71-80: <700, Age 81-90: <800, Age > 90: <900") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1000) +
+  geom_vline(xintercept=500,colour="red") + 
+  geom_vline(xintercept=600,colour="red") + 
+  geom_vline(xintercept=700,colour="red") + 
+  geom_vline(xintercept=800,colour="red") + 
+  geom_vline(xintercept=900,colour="red") 
+
+print(paste0("Skewness: ", skewness(DDM$DDM_val, na.rm = TRUE)))
+
+DDM_transform <- DDM
+DDM_transform$DDM_val <- log10(DDM_transform$DDM_val)
+
+
+ggplot(data = DDM_transform, aes(x=DDM_val)) +
+  ggtitle("DDM distribution") +
+  labs(subtitle="Reference range (ng/ml) = Age < 60: <500, Age 61-70: <600, Age 71-80: <700, Age 81-90: <800, Age > 90: <900") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.05) +
+  geom_vline(xintercept=log10(500),colour="red") + 
+  geom_vline(xintercept=log10(600),colour="red") + 
+  geom_vline(xintercept=log10(700),colour="red") + 
+  geom_vline(xintercept=log10(800),colour="red") + 
+  geom_vline(xintercept=log10(900),colour="red") 
+
+print(paste0("Skewness: ", skewness(DDM_transform$DDM_val, na.rm = TRUE)))
+```
+
+Outliers, positive skew
+
+### eGFR
+
+```{r}
+eGFR_transform <- eGFR
+
+ggplot(data = eGFR_transform, aes(x=eGFR_val)) +
+  ggtitle("eGFR distribution") +
+  labs(subtitle="Reference range = >90") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1) +
+  geom_vline(xintercept=90,colour="red")
+
+print(paste0("Skewness: ", skewness(eGFR$eGFR_val, na.rm = TRUE)))
+```
+
+Negative skew, negative kurtosis?
+
+### FBC Lymphocytes
+
+```{r}
+ggplot(data = FBCLymph, aes(x=Lymphocytes)) +
+  ggtitle("Lymphocytes distribution") +
+  labs(subtitle="Reference range =  1.5-4.5 10^9/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.4) +
+  geom_vline(xintercept=1.5,colour="red") + 
+  geom_vline(xintercept=4.5,colour="red")
+
+print(paste0("Skewness: ", skewness(FBCLymph$Lymphocytes, na.rm = TRUE)))
+
+FBCLymph_transform <- FBCLymph
+FBCLymph_transform$Lymphocytes <- log10(FBCLymph_transform$Lymphocytes)
+
+ggplot(data = FBCLymph_transform, aes(x=Lymphocytes)) +
+  ggtitle("Lymphocytes distribution") +
+  labs(subtitle="Reference range =  1.5-4.5 10^9/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.05) +
+  geom_vline(xintercept=log10(1.5),colour="red") + 
+  geom_vline(xintercept=log10(4.5),colour="red")
+
+print(paste0("Skewness: ", skewness(FBCLymph_transform$Lymphocytes, na.rm = TRUE)))
+```
+
+Outliers, positive kurtosis, positive skew
+
+### Neutrophils
+
+```{r}
+
+
+
+ggplot(data = FBCNeutr, aes(x=Neutrophils)) +
+  ggtitle("Neutrophils distribution") +
+  labs(subtitle="Reference range = 2.0-7.5 10^9/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1) +
+  geom_vline(xintercept=2.0,colour="red") + 
+  geom_vline(xintercept=7.5,colour="red")
+
+print(paste0("Skewness: ", skewness(FBCNeutr$Neutrophils, na.rm = TRUE)))
+
+
+FBCNeutr_transform <- FBCNeutr
+FBCNeutr_transform$Neutrophils <- (FBCNeutr_transform$Neutrophils)^(1/3)
+
+ggplot(data = FBCNeutr_transform, aes(x=Neutrophils)) +
+  ggtitle("Neutrophils distribution") +
+  labs(subtitle="Reference range = 2.0-7.5 10^9/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.05) +
+  geom_vline(xintercept=(2.0)^(1/3),colour="red") + 
+  geom_vline(xintercept=(7.5)^(1/3),colour="red")
+
+print(paste0("Skewness: ", skewness(FBCNeutr_transform$Neutrophils, na.rm = TRUE)))
+```
+
+### FBC NLR
+
+```{r}
+ggplot(data = FBCNLR, aes(x=NLR_val)) +
+  ggtitle("NLR distribution") +
+  labs(subtitle="Reference range = 0.78 and 3.53") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=10) +
+  geom_vline(xintercept=0.78,colour="red") + 
+  geom_vline(xintercept=3.53,colour="red")
+
+print(paste0("Skewness: ", skewness(FBCNLR$NLR_val, na.rm = TRUE)))
+
+FBCNLR_transform <- FBCNLR
+FBCNLR_transform$NLR_val <- log10(FBCNLR_transform$NLR_val)
+
+ggplot(data = FBCNLR_transform, aes(x=NLR_val)) +
+  ggtitle("NLR distribution") +
+  labs(subtitle="Reference range = 0.78 and 3.53") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.05) +
+  geom_vline(xintercept=log10(0.78),colour="red") + 
+  geom_vline(xintercept=log10(3.53),colour="red")
+
+print(paste0("Skewness: ", skewness(FBCNLR_transform$NLR_val, na.rm = TRUE)))
+```
+
+### WCC
+
+```{r}
+ggplot(data = FBCWCC, aes(x=WCC)) +
+  ggtitle("WCC distribution") +
+  labs(subtitle="Reference range = 4.0-11.0 10^9/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1) +
+  geom_vline(xintercept=4.0,colour="red") + 
+  geom_vline(xintercept=11.0,colour="red")
+
+print(paste0("Skewness: ", skewness(FBCWCC$WCC, na.rm = TRUE)))
+
+FBCWCC_transform <- FBCWCC
+FBCWCC_transform$WCC <- (FBCWCC_transform$WCC)^(1/3)
+
+
+ggplot(data = FBCWCC_transform, aes(x=WCC)) +
+  ggtitle("WCC distribution") +
+  labs(subtitle="Reference range = 4.0-11.0 10^9/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.05) +
+  geom_vline(xintercept=(4.0)^(1/3),colour="red") + 
+  geom_vline(xintercept=(11.0)^(1/3),colour="red")
+
+print(paste0("Skewness: ", skewness(FBCWCC_transform$WCC, na.rm = TRUE)))
+```
+
+### FER
+
+```{r}
+ggplot(data = FER, aes(x=FER_val)) +
+  ggtitle("FER distribution") +
+  labs(subtitle="Reference range Male: 33-490, Female(0-44): 15-445, Female(45+yrs): 30-470") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=250) +
+  geom_vline(xintercept=15,colour="green") + 
+  geom_vline(xintercept=33,colour="blue") + 
+  geom_vline(xintercept=445,colour="green") + 
+  geom_vline(xintercept=470,colour="red") + 
+  geom_vline(xintercept=490,colour="blue")
+
+print(paste0("Skewness: ", skewness(FER$FER_val, na.rm = TRUE)))
+
+FER_transform <- FER
+FER_transform$FER_val <- log10(FER_transform$FER_val)
+
+ggplot(data = FER_transform, aes(x=FER_val)) +
+  ggtitle("FER distribution") +
+  labs(subtitle="Reference range Male: 33-490, Female(0-44): 15-445, Female(45+yrs): 30-470") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.075) +
+  geom_vline(xintercept=log10(15),colour="green") + 
+  geom_vline(xintercept=log10(33),colour="blue") + 
+  geom_vline(xintercept=log10(445),colour="green") + 
+  geom_vline(xintercept=log10(470),colour="red") + 
+  geom_vline(xintercept=log10(490),colour="blue")
+
+print(paste0("Skewness: ", skewness(FER_transform$FER_val, na.rm = TRUE)))
+```
+
+### Fib
+
+```{r}
+fib_transform <- fib
+
+ggplot(data = fib_transform, aes(x=fib_val)) +
+  ggtitle("fib distribution") +
+  labs(subtitle="Reference range = 1.8-4.0 g/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.1) +
+  geom_vline(xintercept=1.8,colour="red") + 
+  geom_vline(xintercept=4.0,colour="red")
+
+print(paste0("Skewness: ", skewness(fib$fib_val, na.rm = TRUE)))
+
+```
+
+May need to remove values at 0
+
+### Glucose
+
+```{r}
+ggplot(data = Glucose, aes(x=Glucose_val)) +
+  ggtitle("Glucose distribution") +
+  labs(subtitle="Reference range = Fasting: 3.0-6.0 mmol/L, Non-fasting: 3.0-7.8 mmol/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1) +
+  geom_vline(xintercept=3,colour="red") + 
+  geom_vline(xintercept=6,colour="red") + 
+  geom_vline(xintercept=7.8,colour="red")
+
+print(paste0("Skewness: ", skewness(Glucose$Glucose_val, na.rm = TRUE)))
+
+
+Glucose_transform <- Glucose
+Glucose_transform$Glucose_val <- log10(Glucose_transform$Glucose_val)
+
+
+ggplot(data = Glucose_transform, aes(x=Glucose_val)) +
+  ggtitle("Glucose distribution") +
+  labs(subtitle="Reference range = Fasting: 3.0-6.0 mmol/L, Non-fasting: 3.0-7.8 mmol/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.03) +
+  geom_vline(xintercept=log10(3),colour="red") + 
+  geom_vline(xintercept=log10(6),colour="red") + 
+  geom_vline(xintercept=log10(7.8),colour="red")
+
+print(paste0("Skewness: ", skewness(Glucose_transform$Glucose_val, na.rm = TRUE)))
+```
+
+### HB
+
+```{r}
+HB_transform <- HB
+
+ggplot(data = HB_transform, aes(x=HB_val)) +
+  ggtitle("HB distribution") +
+  labs(subtitle="Reference range = Male 130-170 g/L, Female 120-150 g/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=3) +
+  geom_vline(xintercept=120,colour="red") + 
+  geom_vline(xintercept=130,colour="red") + 
+  geom_vline(xintercept=150,colour="red") + 
+  geom_vline(xintercept=170,colour="red")
+
+print(paste0("Skewness: ", skewness(HB$HB_val, na.rm = TRUE)))
+
+```
+
+### HBA1c
+
+```{r}
+ggplot(data = HBA1c, aes(x=HBA1c_val)) +
+  ggtitle("HBA1c distribution") +
+  labs(subtitle="Reference range = >/= 48 mmol/mol probable diabetes, 42-48 mmol/mol increased risk") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=4) +
+  geom_vline(xintercept=42,colour="red") + 
+  geom_vline(xintercept=48,colour="red")
+
+print(paste0("Skewness: ", skewness(HBA1c$HBA1c_val, na.rm = TRUE)))
+
+HBA1c_transform <- HBA1c
+HBA1c_transform$HBA1c_val <- (HBA1c_transform$HBA1c_val)^(1/3)
+
+
+ggplot(data = HBA1c_transform, aes(x=HBA1c_val)) +
+  ggtitle("HBA1c distribution") +
+  labs(subtitle="Reference range = >/= 48 mmol/mol probable diabetes, 42-48 mmol/mol increased risk") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.05) +
+  geom_vline(xintercept=(42)^(1/3),colour="red") + 
+  geom_vline(xintercept=(48)^(1/3),colour="red")
+
+print(paste0("Skewness: ", skewness(HBA1c_transform$HBA1c_val, na.rm = TRUE)))
+```
+
+### LDH
+
+```{r}
+ggplot(data = LDH, aes(x=LDH_val)) +
+  ggtitle("LDH distribution") +
+  labs(subtitle="Reference range = 240-480 IU/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=200) +
+  geom_vline(xintercept=240,colour="red") + 
+  geom_vline(xintercept=480,colour="red")
+
+print(paste0("Skewness: ", skewness(LDH$LDH_val, na.rm = TRUE)))
+
+LDH_transform <- LDH
+LDH_transform$LDH_val <- log10(LDH_transform$LDH_val)
+
+ggplot(data = LDH_transform, aes(x=LDH_val)) +
+  ggtitle("LDH distribution") +
+  labs(subtitle="Reference range = 240-480 IU/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.04) +
+  geom_vline(xintercept=log10(240),colour="red") + 
+  geom_vline(xintercept=log10(480),colour="red")
+
+print(paste0("Skewness: ", skewness(LDH_transform$LDH_val, na.rm = TRUE)))
+
+```
+
+### PCT
+
+```{r}
+ggplot(data = PCT, aes(x=PCT_val)) +
+  ggtitle("PCT distribution") +
+  labs(subtitle="Reference range = Normal range: <0.05ng/mL, <0.50ng/mL low risk of severe sepsis, >2.00ng/mL high risk severe sepsis") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=2) +
+  geom_vline(xintercept=0.05,colour="red") + 
+  geom_vline(xintercept=0.50,colour="red") + 
+  geom_vline(xintercept=2.0,colour="red") 
+
+print(paste0("Skewness: ", skewness(PCT$PCT_val, na.rm = TRUE)))
+
+
+PCT_transform <- PCT
+PCT_transform$PCT_val <- log10(PCT_transform$PCT_val)
+
+
+ggplot(data = PCT_transform, aes(x=PCT_val)) +
+  ggtitle("PCT distribution") +
+  labs(subtitle="Reference range = Normal range: <0.05ng/mL, <0.50ng/mL low risk of severe sepsis, >2.00ng/mL high risk severe sepsis") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.2) +
+  geom_vline(xintercept=log10(0.05),colour="red") + 
+  geom_vline(xintercept=log10(0.50),colour="red") + 
+  geom_vline(xintercept=log10(2.0),colour="red") 
+
+print(paste0("Skewness: ", skewness(PCT_transform$PCT_val, na.rm = TRUE)))
+```
+
+### PLT
+
+```{r}
+ggplot(data = PLT, aes(x=PLT_val)) +
+  ggtitle("PLT distribution") +
+  labs(subtitle="Reference range = 150-450 10^9/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=50) +
+  geom_vline(xintercept=150,colour="red") + 
+  geom_vline(xintercept=450,colour="red") 
+
+print(paste0("Skewness: ", skewness(PLT$PLT_val, na.rm = TRUE)))
+
+
+PLT_transform <- PLT
+PLT_transform$PLT_val <- sqrt(PLT_transform$PLT_val)
+
+
+ggplot(data = PLT_transform, aes(x=PLT_val)) +
+  ggtitle("PLT distribution") +
+  labs(subtitle="Reference range = 150-450 10^9/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=1) +
+  geom_vline(xintercept=sqrt(150),colour="red") + 
+  geom_vline(xintercept=sqrt(450),colour="red") 
+
+print(paste0("Skewness: ", skewness(PLT_transform$PLT_val, na.rm = TRUE)))
+```
+
+### poctLAC
+
+```{r}
+ggplot(data = poctLAC, aes(x=poctLAC_val)) +
+  ggtitle("poctLAC distribution") +
+  labs(subtitle="Reference range = 0.5-2.2 mmol/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.2) +
+  geom_vline(xintercept=0.5,colour="red") + 
+  geom_vline(xintercept=2.2,colour="red") 
+
+print(paste0("Skewness: ", skewness(poctLAC$poctLAC_val, na.rm = TRUE)))
+
+poctLAC_transform <- poctLAC
+poctLAC_transform$poctLAC_val <- log10(poctLAC_transform$poctLAC_val)
+
+ggplot(data = poctLAC_transform, aes(x=poctLAC_val)) +
+  ggtitle("poctLAC distribution") +
+  labs(subtitle="Reference range = 0.5-2.2 mmol/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.05) +
+  geom_vline(xintercept=log10(0.5),colour="red") + 
+  geom_vline(xintercept=log10(2.2),colour="red") 
+
+print(paste0("Skewness: ", skewness(poctLAC_transform$poctLAC_val, na.rm = TRUE)))
+```
+
+### poctpH
+
+```{r}
+poctpH_transform <- poctpH
+
+ggplot(data = poctpH_transform, aes(x=poctpH_val)) +
+  ggtitle("poctpH distribution") +
+  labs(subtitle="Reference range = 7.35-7.45") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.02) +
+  geom_vline(xintercept=7.35,colour="red") + 
+  geom_vline(xintercept=7.45,colour="red")
+
+print(paste0("Skewness: ", skewness(poctpH$poctpH_val, na.rm = TRUE)))
+```
+
+### Trig
+
+```{r}
+ggplot(data = trig, aes(x=trig_val)) +
+  ggtitle("trig distribution") +
+  labs(subtitle="Reference range = 0.5-1.7") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.3) +
+  geom_vline(xintercept=0.5,colour="red") + 
+  geom_vline(xintercept=1.7,colour="red")
+
+print(paste0("Skewness: ", skewness(trig$trig_val, na.rm = TRUE)))
+
+trig_transform <- trig
+trig_transform$trig_val <- log10(trig_transform$trig_val)
+
+ggplot(data = trig_transform, aes(x=trig_val)) +
+  ggtitle("trig distribution") +
+  labs(subtitle="Reference range = 0.5-1.7") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.03) +
+  geom_vline(xintercept=log10(0.5),colour="red") + 
+  geom_vline(xintercept=log10(1.7),colour="red")
+
+print(paste0("Skewness: ", skewness(trig_transform$trig_val, na.rm = TRUE)))
+```
+
+### Trop
+
+```{r}
+ggplot(data = trop, aes(x=trop_val)) +
+  ggtitle("trop distribution") +
+  labs(subtitle="Reference range = Normal: <14ng/L, Possible MI: 14-30 ng/L, Probable MI: >30 ng/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=200) +
+  geom_vline(xintercept=14,colour="red") + 
+  geom_vline(xintercept=30,colour="red")
+print(paste0("Skewness: ", skewness(trop$trop_val, na.rm = TRUE)))
+
+
+trop_transform <- trop
+trop_transform$trop_val <- log10(trop_transform$trop_val)
+
+ggplot(data = trop_transform, aes(x=trop_val)) +
+  ggtitle("trop distribution") +
+  labs(subtitle="Reference range = Normal: <14ng/L, Possible MI: 14-30 ng/L, Probable MI: >30 ng/L") + 
+  geom_histogram(color="darkblue", fill="lightblue", binwidth=0.05) +
+  geom_vline(xintercept=log10(14),colour="red") + 
+  geom_vline(xintercept=log10(30),colour="red")
+print(paste0("Skewness: ", skewness(trop_transform$trop_val, na.rm = TRUE)))
+```
+
+### Rescale tables, add "Measure" column so that it can act as factor, and combine tables
+
+```{r}
+#BE_transform = rename(BE_transform,BE_val = Numeric.Result )
+BE_transform$BE_val <- rescale(BE_transform$BE_val)
+BE_transform = BE_transform %>% select(uob_ID,date,BE_val)
+BE_transform['Measure'] = 'BE'
+BE_transform = BE_transform %>%
+    rename ( 
+        Numeric.Result = BE_val
+    )
+
+BNP_transform$BNP_val <- rescale(BNP_transform$BNP_val)
+BNP_transform = BNP_transform %>% select(uob_ID,date,BNP_val)
+BNP_transform['Measure'] = 'BNP'
+BNP_transform = BNP_transform %>%
+    rename ( 
+        Numeric.Result = BNP_val
+    )
+
+CRP_transform$CRP_val <- rescale(CRP_transform$CRP_val)
+CRP_transform = CRP_transform %>% select(uob_ID,date,CRP_val)
+CRP_transform['Measure'] = 'CRP'
+CRP_transform = CRP_transform %>%
+    rename ( 
+        Numeric.Result = CRP_val
+    )
+
+DDM_transform$DDM_val <- rescale(DDM_transform$DDM_val)
+DDM_transform = DDM_transform %>% select(uob_ID,date,DDM_val)
+DDM_transform['Measure'] = 'DDM'
+DDM_transform = DDM_transform %>%
+    rename ( 
+        Numeric.Result = DDM_val
+    )
+
+eGFR_transform$eGFR_val <- rescale(eGFR_transform$eGFR_val)
+eGFR_transform = eGFR_transform %>% select(uob_ID,date,eGFR_val)
+eGFR_transform['Measure'] = 'eGFR'
+eGFR_transform = eGFR_transform %>%
+    rename ( 
+        Numeric.Result = eGFR_val
+    )
+
+FER_transform$FER_val <- rescale(FER_transform$FER_val)
+FER_transform = FER_transform %>% select(uob_ID,date,FER_val)
+FER_transform['Measure'] = 'FER'
+FER_transform = FER_transform %>%
+    rename ( 
+        Numeric.Result = FER_val
+    )
+
+fib_transform$fib_val <- rescale(fib_transform$fib_val)
+fib_transform = fib_transform %>% select(uob_ID,date,fib_val)
+fib_transform['Measure'] = 'fib'
+fib_transform = fib_transform %>%
+    rename ( 
+        Numeric.Result = fib_val
+    )
+
+Glucose_transform$Glucose_val <- rescale(Glucose_transform$Glucose_val)
+Glucose_transform = Glucose_transform %>% select(uob_ID,date,Glucose_val)
+Glucose_transform['Measure'] = 'Glucose'
+Glucose_transform = Glucose_transform %>%
+    rename ( 
+        Numeric.Result = Glucose_val
+    )
+
+HB_transform$HB_val <- rescale(HB_transform$HB_val)
+HB_transform = HB_transform %>% select(uob_ID,date,HB_val)
+HB_transform['Measure'] = 'HB'
+HB_transform = HB_transform %>%
+    rename ( 
+        Numeric.Result = HB_val
+    )
+
+ClotAPTT_transform$APTT_val <- rescale(ClotAPTT_transform$APTT_val)
+ClotAPTT_transform = ClotAPTT_transform %>% select(uob_ID,date,APTT_val)
+ClotAPTT_transform['Measure'] = 'APTT'
+ClotAPTT_transform = ClotAPTT_transform %>%
+    rename ( 
+        Numeric.Result = APTT_val
+    )
+
+ClotPT_transform$PT_val <- rescale(ClotPT_transform$PT_val)
+ClotPT_transform = ClotPT_transform %>% select(uob_ID,date,PT_val)
+ClotPT_transform['Measure'] = 'PT'
+ClotPT_transform = ClotPT_transform %>%
+    rename ( 
+        Numeric.Result = PT_val
+    )
+
+CO2_transform$CO2_val <- rescale(CO2_transform$CO2_val)
+CO2_transform = CO2_transform %>% select(uob_ID,date,CO2_val)
+CO2_transform['Measure'] = 'CO2'
+CO2_transform = CO2_transform %>%
+    rename ( 
+        Numeric.Result = CO2_val
+    )
+
+O2_transform$O2_val <- rescale(O2_transform$O2_val)
+O2_transform = O2_transform %>% select(uob_ID,date,O2_val)
+O2_transform['Measure'] = 'O2'
+O2_transform = O2_transform %>%
+    rename ( 
+        Numeric.Result = O2_val
+    )
+
+FBCLymph_transform$Lymphocytes <- rescale(FBCLymph_transform$Lymphocytes)
+FBCLymph_transform = FBCLymph_transform %>% select(uob_ID,date,Lymphocytes)
+FBCLymph_transform['Measure'] = 'Lymphocytes'
+FBCLymph_transform = FBCLymph_transform %>%
+    rename ( 
+        Numeric.Result = Lymphocytes
+    )
+
+FBCNeutr_transform$Neutrophils <- rescale(FBCNeutr_transform$Neutrophils)
+FBCNeutr_transform = FBCNeutr_transform %>% select(uob_ID,date,Neutrophils)
+FBCNeutr_transform['Measure'] = 'Neutrophils'
+FBCNeutr_transform = FBCNeutr_transform %>%
+    rename ( 
+        Numeric.Result = Neutrophils
+    )
+
+FBCNLR_transform$NLR_val <- rescale(FBCNLR_transform$NLR_val)
+FBCNLR_transform = FBCNLR_transform %>% select(uob_ID,date,NLR_val)
+FBCNLR_transform['Measure'] = 'NLR'
+FBCNLR_transform = FBCNLR_transform %>%
+    rename ( 
+        Numeric.Result = NLR_val
+    )
+
+FBCWCC_transform$WCC <- rescale(FBCWCC_transform$WCC)
+FBCWCC_transform = FBCWCC_transform %>% select(uob_ID,date,WCC)
+FBCWCC_transform['Measure'] = 'WCC'
+FBCWCC_transform = FBCWCC_transform %>%
+    rename ( 
+        Numeric.Result = WCC
+    )
+
+HBA1c_transform$HBA1c_val <- rescale(HBA1c_transform$HBA1c_val)
+HBA1c_transform = HBA1c_transform %>% select(uob_ID,date,HBA1c_val)
+HBA1c_transform['Measure'] = 'HBA1c'
+HBA1c_transform = HBA1c_transform %>%
+    rename ( 
+        Numeric.Result = HBA1c_val
+    )
+
+poctpH_transform$poctpH_val <- rescale(poctpH_transform$poctpH_val)
+poctpH_transform = poctpH_transform %>% select(uob_ID,date,poctpH_val)
+poctpH_transform['Measure'] = 'poctpH'
+poctpH_transform$date = as.Date(poctpH$date, format="%d/%m/%Y")
+poctpH_transform = poctpH_transform %>%
+    rename ( 
+        Numeric.Result = poctpH_val
+    )
+
+
+poctLAC_transform$poctLAC_val <- rescale(poctLAC_transform$poctLAC_val)
+poctLAC_transform = poctLAC_transform %>% select(uob_ID,date,poctLAC_val)
+poctLAC_transform['Measure'] = 'poctLAC'
+poctLAC_transform = poctLAC_transform %>%
+    rename ( 
+        Numeric.Result = poctLAC_val
+    )
+
+LDH_transform$LDH_val <- rescale(LDH_transform$LDH_val)
+LDH_transform = LDH_transform %>% select(uob_ID,date,LDH_val)
+LDH_transform['Measure'] = 'LDH'
+LDH_transform = LDH_transform %>%
+    rename ( 
+        Numeric.Result = LDH_val
+    )
+
+PCT_transform$PCT_val <- rescale(PCT_transform$PCT_val)
+PCT_transform = PCT_transform %>% select(uob_ID,date,PCT_val)
+PCT_transform['Measure'] = 'PCT'
+PCT_transform = PCT_transform %>%
+    rename ( 
+        Numeric.Result = PCT_val
+    )
+
+PLT_transform$PLT_val <- rescale(PLT_transform$PLT_val)
+PLT_transform = PLT_transform %>% select(uob_ID,date,PLT_val)
+PLT_transform['Measure'] = 'PLT'
+PLT_transform = PLT_transform %>%
+    rename ( 
+        Numeric.Result = PLT_val
+    )
+
+trig_transform$trig_val <- rescale(trig_transform$trig_val)
+trig_transform = trig_transform %>% select(uob_ID,date,trig_val)
+trig_transform['Measure'] = 'trig'
+trig_transform = trig_transform %>%
+    rename ( 
+        Numeric.Result = trig_val
+    )
+
+trop_transform$trop_val <- rescale(trop_transform$trop_val)
+trop_transform = trop_transform %>% select(uob_ID,date,trop_val)
+trop_transform['Measure'] = 'trop'
+trop_transform = trop_transform %>%
+    rename ( 
+        Numeric.Result = trop_val
+    )
+
+```
+
+### Merge tables
+
+```{r}
+total <- rbind(BE_transform,BNP_transform,CRP_transform,DDM_transform,eGFR_transform,FER_transform,fib_transform,Glucose_transform,HB_transform,ClotAPTT_transform,ClotPT_transform,CO2_transform,O2_transform,FBCLymph_transform,FBCNeutr_transform,FBCNLR_transform,FBCWCC_transform,HBA1c_transform,poctpH_transform,poctLAC_transform,LDH_transform,PCT_transform,PLT_transform,trig_transform,trop_transform)
+total$Measure <- factor(total$Measure, levels = c("BNP","LDH","HBA1c","trig","trop","DDM","FER","PCT","fib","Glucose","PT","APTT","PLT","CRP","eGFR","poctLAC","poctpH","O2","CO2","WCC","Lymphocytes","Neutrophils","NLR","HB","BE"))
+```
+
+## Demographics Table
+Age and gender for every individual
+
+```{r}
+# dem = Vir %>%
+#    distinct(uob_ID, .keep_all = TRUE)
+#  dem = dem %>%
+#    select(uob_ID,Gender,Age)
+```
+
+## Individual Patient Visualisation
+To show individual patient data, please use this function, of the form 
+
+    show_patient_info(patientID)
+
+```{r, results='asis'}
+
+
+show_patient_viz <- function(patientID) {
+  val_outcome = subset(dem, uob_ID == patientID)[1,]
+  gender = val_outcome$Gender
+  age = val_outcome$Age
+  date = (total %>% filter(uob_ID == patientID))[1,]$date
+  new_data = total %>% filter(uob_ID == patientID)
+  new_data$Measure <- factor(new_data$Measure, levels = c("BNP","LDH","HBA1c","trig","trop","DDM","FER","PCT","fib","Glucose","PT","APTT","PLT","CRP","eGFR","poctLAC","poctpH","O2","CO2","WCC","Lymphocytes","Neutrophils","NLR","HB","BE"))
+  p <- ( ggplot() + 
+           ggtitle(paste(i, ", Patient",patientID,"summary")) + 
+           labs(subtitle = paste("Gender:",val_outcome$Gender,"Age",val_outcome$Age)) +
+           geom_tile(new_data, mapping = aes(date, Measure, fill = Numeric.Result)) + 
+           scale_fill_viridis_c(na.value = "grey50",option = "plasma") +
+           scale_y_discrete(drop = FALSE,limits = (rev(levels(new_data$Measure)))) +
+           scale_x_date(labels = date_format(format = "%Y-%m-%d"))
+  )
+  # Plot Covid Positive test
+  if(length((CovidCT %>% filter(CovidCT$uob_ID==patientID))$date) > 0){
+    if(!is.null((CovidCT %>% filter(CovidCT$uob_ID==patientID))$date) && !is.na((CovidCT %>% filter(CovidCT$uob_ID==patientID))$date)){
+      positiveDate = (CovidCT %>% filter(CovidCT$uob_ID==patientID))[1,]$date
+      p = p + geom_label(data= (CovidCT %>% filter(CovidCT$uob_ID==patientID))[1,], mapping=aes(x=date,y=1,label="Positive"),colour="black",show.legend = FALSE) +
+        geom_vline(data= (CovidCT %>% filter(CovidCT$uob_ID==patientID))[1,], mapping=aes(xintercept = date, colour="red"),show.legend = FALSE)
+    }
+  }
+  # Plot hospital admission
+  if(length((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$admissionDate) > 0){
+    if(!is.null((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$admissionDate) && !is.na((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$admissionDate)){
+      for(val2 in 1:length(totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))){
+        admissionDate = (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[val2,]$admissionDate
+        p = p + geom_label(data= (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[val2,], mapping=aes(x=admissionDate,y=2,label="Admission"),colour="black",show.legend = FALSE) + 
+        geom_vline(xintercept = admissionDate, colour="blue",show.legend = FALSE)
+      }
+    }
+  }
+  # Plot ICU admission
+  if(length((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$ITU_Start) > 0){
+    if(!is.null((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$ITU_Start) && !is.na((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$ITU_Start)){
+      for(val2 in 1:length(totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))){
+        ITU_Start = (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[val2,]$ITU_Start
+        p = p + geom_label(data= (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[val2,], mapping=aes(x=ITU_Start,y=3,label="ICU Start"),colour="black",show.legend = FALSE) + 
+        geom_vline(xintercept = ITU_Start, colour="blue",show.legend = FALSE)
+      }
+    }
+  }
+  # Plot ICU discharge
+  if(length((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$ITU_End) > 0){
+    if(!is.null((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$ITU_End) && !is.na((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$ITU_End)){
+      for(val2 in 1:length(totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))){
+        ITU_End = (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[val2,]$ITU_End
+        p = p + geom_label(data= (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[val2,], mapping=aes(x=ITU_End,y=4,label="ICU End"),colour="black",show.legend = FALSE) + 
+        geom_vline(xintercept = ITU_End, colour="blue",show.legend = FALSE)
+      }
+    }
+  }
+  # Plot date of death
+  if(length((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$deathDate) > 0){
+    if(!is.na((totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))$deathDate)){
+      deathDate = (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[1,]$deathDate
+      p = p + geom_label(data= (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[1,], mapping=aes(x=deathDate,y=5,label="Death"),colour="black",show.legend = FALSE) +
+      geom_vline(xintercept = deathDate, colour="red",show.legend = FALSE)
+    }else{
+      for(val2 in 1:length(totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))){
+        dischargeDate = (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[val2,]$dischargeDate
+        # Plot discharge
+        p = p + geom_label(data= (totalOutcomes %>% filter(totalOutcomes$uob_ID==patientID))[val2,], mapping=aes(x=dischargeDate,y=6,label="Discharged"),colour="black",show.legend = FALSE) +
+        geom_vline(xintercept = dischargeDate, colour="green",show.legend = FALSE)
+      }
+    }
+  }
+  
+  #fig <- ggplotly(p)
+  cat("#### Visualisation")
+  cat("\n\n")
+  print(p)
+  cat("\n\n")
+}
+```
+
+```{r, results='asis'}
+total_outcome_info <- function(patientID) {
+    cat("\n\n")
+    cat("#### Outcomes")
+    print(kable(totalOutcomes[totalOutcomes$uob_ID==patientID,]))
+    cat("\n\n")
+}     
+```
+
+```{r, results= 'asis'}
+vir_info <- function(patientID) {
+    cat(paste("#### Virology"))
+    info <- filter(Vir,Vir$uob_ID==patientID)
+    info <- info %>% select(uob_ID,date,SARS.CoV.2.RNA,Adenovirus,Human_Metapneumovirus,Influenza_A,Influenza_B,Parainfluenza_Type_1,Parainfluenza_Type_2,Parainfluenza_Type_3,Parainfluenza_Type_4,Respiratory_Syncytial_Virus,Rhinovirus)
+    print(kable(info))
+    cat("\n\n")
+}
+```
+
+```{r, results= 'asis'}
+bc_info <- function(patientID) {
+    cat("#### Blood Culture")
+    info <- filter(BC,BC$uob_ID==patientID)
+    print(kable(info))
+    cat("\n\n")
+}
+```
+
+```{r, results= 'asis'}
+avonCap_info <- function(patientID) {
+    info <- filter(AvonCap,AvonCap$uob_ID==patientID)
+    if(length(info[,1]) > 0){
+        cat("#### AvonCap")
+        info <- info %>% select(uob_ID,Community_Acquired_Pneumonia_radiologically_confirmed, Community_Acquired_Pneumonia_clinically_confirmed, Community_Acquired_Pneumonia_no_radiology_performed, Acute_bronchitis, Exacerbation_of_COPD, Empyema_lung_abscess, LRTI_not_further_specified, Congestive_heart_failure, Non_infectious_process, Non_LRTD_infection_related_diagnosis, Other_LRTI_specified, NYHA_Heart_failure, CRB65_Score, NEWS2_Score, Respiratory_Disease_None, COPD, Asthma, Bronchiectasis, Pulmonary_Fibrosis_Interstitial_Lung_Disease, Respiratory_Disease_other, Chronic_heart_disease_none, Hypertension, Atrial_Fibrillation, Ischaemic_heart_disease, Heart_failure, Chronic_heart_disease_other, Chronic_Kidney_Disease, Liver_disease, Diabetes, Cognitive_Impairment_Dementia_none, Dementia, Cognitive_impairment, CVA_Stroke, TIA_mini_stroke, Hemiplegiahemiplegia_or_paraplegia, Peripheral_vascular_disease, Immunosuppressive_medication, Immunodeficiency, Connective_tissue_disease, HIV_negative_or_not_tested, HIV_positive, AIDS, Solid_organ_cancer_malignancy, Haematological_malignancy_leukaemia_none, Leukaemia, Lymphoma, Organ_transplantation, Pregnancy_post_partum, Gastric_Duodenal_Ulcer_disease, Rockwood_frailty_score, Radiology_result)
+        info <- as.data.frame(t(info))
+        print(kable(info))
+        cat("\n\n")
+    }
+}
+```
+
+```{r, results='asis'}
+
+#read list of valid UOB Ids
+ID_list = read.csv('C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/source/totalBinary3first.csv')
+
+#we parse the list into validation (Weston) vs train (UHB, NBT)
+train_id_list = ID_list[ID_list$Site != 'Weston', 'ID']
+test_id_list = ID_list[ID_list$Site == 'Weston','ID']
+
+#NOTE the visualisation will only do train or test not both - alter ID_list for the desired set
+ID_list = train_id_list
+
+#create a store number of days from covid positive to first measure per patient
+days_to_reading_mt = matrix(data = NA, nrow = length(ID_list), ncol = length(levels(total$Measure)))
+colnames(days_to_reading_mt) <- levels(total$Measure)
+
+#make a copy to track number of readings per person/measure
+num_readings_mt = days_to_reading_mt
+#make a copy for a matrix to track number of days between admit & c19 positive
+days_between_admit_c19positive_mt = matrix(data = NA, nrow = length(ID_list), ncol = 1)
+
+covid_ls = matrix( data = TRUE, nrow = length(ID_list), ncol = 1 )
+
+#prepare structure to find IDs who have very long waits till first reading
+ReadingOutlier_tb = tibble(ID = '', READING = '', DAYS = NA)
+ctr = 0
+
+for (i in (1:length(ID_list))) { #use only valid UOB ids
+  
+    #grab some data on patient and tests (copied from show_patient_viz)
+    patientID = ID_list[i]
+    admitDate = (totalOutcomes %>% filter(totalOutcomes$uob_ID == patientID))$admissionDate
+    positiveDate = (CovidCT %>% filter(CovidCT$uob_ID == patientID))[1,]$date
+    val_outcome = subset(dem, uob_ID == patientID)[1,]
+    new_data = total %>% filter(uob_ID == patientID)
+    
+    #check if they had a positive test and at least 18
+    if (!is.na(positiveDate) & (dem$Age[i] > 17) ) {
+      unique_measures_ls = unique(new_data$Measure)
+      
+      days_between_admit_c19positive_mt[i] = as.numeric(admitDate - positiveDate)
+      #find amount of days from positive to first test for each test
+      for (j in unique_measures_ls) {
+        idx1 = new_data$Measure == j
+        days_between_pos_reading = positiveDate - new_data$date[idx1]
+        
+        #index to see if any readings AFTER covid test
+        idx2 = days_between_pos_reading >= 0
+        if (sum(idx2) > 0) {
+          minimum_day = min(days_between_pos_reading[idx2])
+          
+          if (minimum_day > 10) {
+            ctr = ctr + 1
+            ReadingOutlier_tb[ctr,1] = patientID
+            ReadingOutlier_tb[ctr,2] = j
+            ReadingOutlier_tb[ctr,3] = minimum_day
+          }
+          
+          days_to_reading_mt[i,j] = minimum_day[[1]]
+          num_readings_mt[i,j] = sum(idx2)
+          
+        }
+      }
+      cat("### Visualisation of patient", patientID)
+      cat("\n\n")
+      
+      if(1) { #if you want visualization
+        suppressWarnings(show_patient_viz(patientID))
+        total_outcome_info(i)
+        bc_info(i)
+        vir_info(i)
+        avonCap_info(i)
+      }
+    } else { #record the index for the patient without confirmed covid
+      covid_ls[i] = FALSE
+      }
+    
+}
+
+columns = c("numReadings","Within1days","Over1Days", "Within3days","Over3Days", "Within5days","Over5Days") 
+reading_stats = data.frame(matrix(nrow = 0, ncol = length(columns))) 
+colnames(reading_stats) = columns
+
+for (j in colnames(days_to_reading_mt)) {
+  
+  #select only valid cases
+  tmp = days_to_reading_mt[covid_ls,j]
+  d_t_r_nonans = tmp[!is.na(tmp)]
+  hist(d_t_r_nonans, xlab = 'Days from Cov+ to first reading', 
+       main = paste(j, ': Days to first reading'),
+       breaks = c(0:max(d_t_r_nonans)))
+  
+  #select only valid cases
+  tmp = num_readings_mt[covid_ls,j]
+  n_r_nonans = tmp[!is.na(tmp)]
+  hist(n_r_nonans, xlab = 'Number of readings', main = paste(j, ': Number readings'),
+       breaks = c(0:max(n_r_nonans)))
+  
+  #compute some helpful stats
+  num_first_read = length(d_t_r_nonans)
+  
+  read_within1 = sum(d_t_r_nonans < 2)
+  read_over1 = sum(d_t_r_nonans > 1)
+  
+  read_within3 = sum(d_t_r_nonans < 4)
+  read_over3 = sum(d_t_r_nonans > 3)
+  
+  read_within5 = sum(d_t_r_nonans < 6)
+  read_over5 = sum(d_t_r_nonans > 5)
+  
+  reading_stats[j,]=c(num_first_read, read_within1, read_over1,read_within3, read_over3,read_within5, read_over5)
+  
+  
+}
+
+hist(days_between_admit_c19positive_mt, xlab = 'Days from Admit to Cov+', 
+     main = paste('Days between admission and c19+'))
+
+
+
+
+```
