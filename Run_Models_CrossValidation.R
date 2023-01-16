@@ -1,0 +1,508 @@
+#--------------------------------------------------------------------------------------
+##---- Standard GLM Models ------
+#--------------------------------------------------------------------------------------
+
+#--------------------------------------------------------------------------------------
+#INTERNAL VALIDATION (Train on training set and test on training set)
+#Do GLM cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
+crossval.train.data <- train.data
+#crossval.train.data <- # don't need to specify crossval.test.data as it will be a % from crossval.train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified avicw  
+cv_desc = ''
+p_str <- 'T_GLM_' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_CVTestData_', sep = '')
+
+print('Run GLM with CrossVal Train only UHB/NBT 80/20 split...')
+source('CrossValidate_GLM_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df1[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3]) 
+
+write.table(cv_batch_df1, file = paste(output_path, 
+                                       'GLM_CV_Train_Summary_Compendium.csv',
+                                       sep = ''),
+            row.names = FALSE, sep = ',')
+
+#--------------------------------------------------------------------------------------
+#Do GLM cross validation training on (1 - 1/outsidefolds) but test on excluded dataset
+#for generalisation
+crossval.train.data <- train.data
+crossval.test.data <- test.data
+generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified above
+p_str <- 'G_GLM_' ##(G)eneralise, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_GeneraliseData_', sep = '')
+
+print('Run GLM with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
+source('CrossValidate_GLM_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df2[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3]) 
+
+write.table(cv_batch_df2, file = paste(output_path, 
+                                       'GLM_CV_Generalise_Summary_Compendium.csv'
+                                       ,sep = ''),
+            row.names = FALSE, sep = ',')
+
+
+
+
+
+
+#--------------------------------------------------------------------------------------
+# LASSO MODEL
+#--------------------------------------------------------------------------------------
+
+#INTERNAL VALIDATION (Train and test on training data with CV split)
+#--------------------------------------------------------------------------------------
+#Do Lasso cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
+crossval.train.data <- train.data
+#don't need to specify crossval.test.data as it will be a % from crossval.train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified  
+p_str <- 'T_LASSO_' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_CVTestData_', sep = '')
+
+
+print('Run LASSO with CrossVal Train only UHB/NBT 80/20 split...')
+source('CrossValidate_LASSO_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df3[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3])  
+
+write.table(cv_batch_df3, file = paste(output_path, 'LASSO_CV_Train_Summary_Compendium.csv',sep = ''),
+            row.names = FALSE, sep = ',')
+
+if (m_ctr == 1) { #first time create table
+  cv_batch_varlist_df1 <- data.frame(matrix(data = NA, nrow = 1, 
+                                            ncol = 4 + length(varnames[[1]])))
+  colnames(cv_batch_varlist_df1)[1:4] <- c('ModelType', 'Reading', 'Day', 'Outcome')
+  colnames(cv_batch_varlist_df1)[5:dim(cv_batch_varlist_df1)[2]] <- varnames[[1]]
+} 
+
+#save variable frequency selection 
+cv_batch_varlist_df1[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                                  varcount/(n_models)*100)
+
+write.table(cv_batch_varlist_df1, file = paste(output_path, 
+                                               'LASSO_CV_Variable_Selection_Compendium.csv',
+                                               sep = ''), row.names = FALSE, sep = ',')
+
+#Find which variables in LOO are non-zero at least 50% of the time
+equal_above_50 = (varcount/(n_models)*100) >= 50
+vname = varnames[[1]]
+
+#--------------------------------------------------------------------------------------
+#EXTERNAL VALIDATION (Train on training data and test with validation set)  
+#--------------------------------------------------------------------------------------
+#Do Lasso cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
+crossval.train.data <- train.data
+crossval.test.data <- test.data
+generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified 
+
+p_str <- 'G_LASSO_' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_GeneraliseData_', sep = '')
+
+print('Run LASSO with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
+source('CrossValidate_LASSO_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df4[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3]) 
+
+write.table(cv_batch_df4, file = paste(output_path, 
+                                       'LASSO_CV_Generalise_Summary_Compendium.csv',
+                                       sep = ''),
+            row.names = FALSE, sep = ',')
+
+
+
+
+
+
+
+
+
+
+
+
+
+#--------------------------------------------------------------------------------------
+#----- Bayesian Logistic Regression-------------------
+#--------------------------------------------------------------------------------------
+
+#FLAT PRIOR
+#INTERNAL VALIDATION Training Data performance
+crossval.train.data <- train.data
+crossval.test.data <- train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified 
+
+p_str <- 'T_BAYES_' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_TrainData_', sep = '')
+
+prior_type = 'Flat'
+print('Run Flat BAYES with CrossVal Train UHB/NBT 80/20 split, test on Train')
+source('CrossValidate_BAYES_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df5[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3])  
+
+write.table(cv_batch_df5, file = paste(output_path, 
+                                       'Flat_BAYES_CV_Train_Summary_Compendium.csv',
+                                       sep = ''),
+            row.names = FALSE, sep = ',')
+
+
+#-----Generalise Performance
+crossval.train.data <- train.data
+crossval.test.data <- test.data
+generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified 
+
+p_str <- 'G_BAYES_' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_GeneraliseData_', sep = '')
+
+prior_type = 'Flat'
+print('Run Flat BAYES with CrossVal Train UHB/NBT 80/20 split, test on Generalise')
+source('CrossValidate_BAYES_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df6[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3])  
+
+write.table(cv_batch_df6, file = paste(output_path, 
+                                       'Flat_BAYES_CV_Generalise_Summary_Compendium.csv',
+                                       sep = ''),
+            row.names = FALSE, sep = ',')
+
+
+
+#HORSE SHOE PRIOR
+#INTERNAL VALIDATION Training Data performance
+crossval.train.data <- train.data
+crossval.test.data <- train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified 
+
+p_str <- 'T_BAYES_HS' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_TrainData_', sep = '')
+
+print('Run HS BAYES with CrossVal Train UHB/NBT 80/20 split, test on Train')
+prior_type = 'Horseshoe'
+source('CrossValidate_BAYES_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df7[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3])  
+
+write.table(cv_batch_df7, file = paste(output_path, 
+                                       'HS_BAYES_CV_Train_Summary_Compendium.csv',
+                                       sep = ''),
+            row.names = FALSE, sep = ',')
+
+
+#-----Generalise Performance
+crossval.train.data <- train.data
+crossval.test.data <- test.data
+generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified 
+
+p_str <- 'G_BAYES_HS_' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_GeneraliseData_', sep = '')
+
+prior_type = 'Horseshoe'
+print('Run HS BAYES with CrossVal Train UHB/NBT 80/20 split, test on Generalise')
+source('CrossValidate_BAYES_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df8[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3])  
+
+write.table(cv_batch_df8, file = paste(output_path, 
+                                       'HS_BAYES_CV_Generalise_Summary_Compendium.csv',
+                                       sep = ''),
+            row.names = FALSE, sep = ',')
+#-----------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+#-----------------------------------------------------------------------------------------
+#REDUCED VARIABLE MODELS
+#-----------------------------------------------------------------------------------------
+
+#Evaluate LASSO Inspired Model
+vname[equal_above_50]
+#the above should yield the following text, note LASSO output appends superfluous TRUE
+#[1] "(Intercept)"                "Age"                        "CRP_AbnormalTRUE"           "FER_MildTRUE"              
+#[5] "fib_MildTRUE"               "HB_SevereTRUE"              "LDH_MildTRUE"               "LDH_NATRUE"                
+#[9] "PLT_MildTRUE"               "PLT_ModerateTRUE"           "PLT_SevereTRUE"             "Lymphocytes_SevereTRUE"    
+#[13] "Neutrophils_MildTRUE"       "Neutrophils_SevereTRUE"     "NLR_SevereTRUE"             "APTT_MildTRUE"             
+#[17] "APTT_ModerateTRUE"          "PT_AbnormalTRUE"            "poctLAC_NATRUE"             "poctpH_AbnormalTRUE"       
+#[21] "Urea_AbnormalTRUE"          "viral_coinfection_TRUETRUE" "bc_coinfection_TRUETRUE"   
+
+#construct list with reduced variables - note tis list is copied to the area running the models
+#using access to ALL training data
+#lasso_var_ls = c('outcome', "Age",
+#                 "CRP_Abnormal", "CRP_NA", 
+#                 "FER_Mild",  "FER_Moderate", "FER_Severe",  "FER_NA", 
+#                 "fib_Mild", "fib_Severe",  "fib_NA",                 
+#                 "HB_Mild",  "HB_Moderate", "HB_Severe",  "HB_NA",               
+#                 "LDH_Mild", "LDH_Moderate", "LDH_Severe", "LDH_NA", 
+#                 "PLT_Mild", "PLT_Moderate", "PLT_Severe", "PLT_NA",
+#                 "Lymphocytes_Mild", "Lymphocytes_Moderate", "Lymphocytes_Severe", "Lymphocytes_NA",
+#                 "Neutrophils_Mild", "Neutrophils_Moderate", "Neutrophils_Severe", "Neutrophils_NA", 
+#                 "NLR_Mild", "NLR_Moderate", "NLR_Severe", "NLR_NA",
+#                 "APTT_Mild", "APTT_Moderate", "APTT_NA",
+#                 "PT_Abnormal", "PT_NA", 
+#                 "poctLAC_Abnormal", "poctLAC_NA",
+#                 "poctpH_Abnormal", "poctpH_NA",
+#                 "viral_coinfection_TRUE",
+#                 "bc_coinfection_TRUE")
+
+#--------------------------------------------------------------------------------------
+#INTERNAL VALIDATION (Train on training set and test on training set)
+#Do GLM cross validation training on (1 - 1/outsidefolds )*100, e.g. train 75% test 25%
+crossval.train.data <- train.data[, lasso_var_ls]
+#crossval.train.data <- # don't need to specify crossval.test.data as it will be a % from crossval.train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified avicw  
+
+p_str <- 'T_LASSO_REDUCE_' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_CVTestData_', sep = '')
+
+print('Run GLM for LASSO Reduced with CrossVal Train only UHB/NBT 80/20 split...')
+source('CrossValidate_GLM_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df9[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3]) 
+
+write.table(cv_batch_df9, file = paste(output_path, 
+                                       'GLM_LASSO_REDUCED_CV_Train_Summary_Compendium.csv',
+                                       sep = ''),
+            row.names = FALSE, sep = ',')
+
+#--------------------------------------------------------------------------------------
+
+
+#Do GLM cross validation training on (1 - 1/outsidefolds) but test on excluded dataset
+#for generalisation
+crossval.train.data <- train.data[, lasso_var_ls]
+crossval.test.data <- test.data[, lasso_var_ls]
+generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified above
+
+p_str <- 'G_LASSO_REDUCE_' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_GeneraliseData_', sep = '')
+
+print('Run GLM with CrossVal Train UHB/NBT 80/20 split, but test generalisation Weston')
+source('CrossValidate_GLM_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df10[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3]) 
+
+write.table(cv_batch_df10, file = paste(output_path, 
+                                       'GLM_LASSO_REDUCED_CV_Generalise_Summary_Compendium.csv'
+                                       ,sep = ''),
+            row.names = FALSE, sep = ',')
+
+#--------------------------------------------------------------------------------------
+
+
+
+
+#--------------------------------------------------------------------------------------
+#PROJPRED on k-fold using HORSE SHOE PRIOR
+#INTERNAL VALIDATION Training Data performance
+crossval.train.data <- train.data
+crossval.test.data <- train.data
+generalise_flag <- 0 # if == 1, do not test CV with 20% held out, instead test on specified 
+
+p_str <- 'T_PP' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_TrainData_', sep = '')
+
+#if testing all vatiables set solution tems list to null
+#solterms_ls = NULL
+#nt_max = 70
+
+#limited set of terms to enhance speed in varsel 
+solterms_ls = c( "UreaAbnormal", "UreaNA", ##AUC=0.62
+                "Age", #AUC=0.64
+                "PTAbnormal","PTNA", ##AUC=0.68
+                "NLRMild","NLRModerate","NLRSevere","NLRNA" #AUC =  G 0.70  // I 0.75 **       
+)
+nt_max = length(solterms_ls)
+
+print('Run ProjPred with CrossVal Train UHB/NBT 80/20 split, test on Train')
+prior_type = 'Horseshoe'
+source('CrossValidate_ProjPred_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df11[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                          median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                          median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                          median(lambda.store), lambda.store_quantile[1],
+                          lambda.store_quantile[2],lambda.store_quantile[3],
+                          median(sensitivity_store),sensitivity_quantile[1],
+                          sensitivity_quantile[2],sensitivity_quantile[3], 
+                          median(specificity_store),specificity_quantile[1],
+                          specificity_quantile[2],specificity_quantile[3],
+                          specificity90_spec_quantile[1],
+                          specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                          specificity95_spec_quantile[1],
+                          specificity95_spec_quantile[2],specificity95_spec_quantile[3])  
+
+write.table(cv_batch_df11, file = paste(output_path, 
+                                       'ProjPred_CV_Train_Summary_Compendium.csv',
+                                       sep = ''),
+            row.names = FALSE, sep = ',')
+
+
+
+
+#--------------------------------------------------------------------------------------
+#PROJPRED on k-fold using HORSE SHOE PRIOR
+#GENERLAISE TEST
+crossval.train.data <- train.data
+crossval.test.data <- test.data
+generalise_flag <- 1 # if == 1, do not test CV with 20% held out, instead test on specified 
+
+p_str <- 'T_PP' #(T)rain, text prefix for roc curve compendium variables
+cv_desc = paste(p_str , 'Train_CVTrainData_Test_GeneraliseData_', sep = '')
+
+print('Run ProjPred with CrossVal Train UHB/NBT 80/20 split, test on Train')
+prior_type = 'Horseshoe'
+source('CrossValidate_ProjPred_On_Selected_Data.R')
+
+#save things to our summary data table
+cv_batch_df12[m_ctr,] <- c(mnum, readingwanted_str, dateRange, outcome_str,
+                           median(auc), auc_quantile[1],auc_quantile[2],auc_quantile[3],
+                           median(brier), brier_quantile[1],brier_quantile[2],brier_quantile[3],
+                           median(lambda.store), lambda.store_quantile[1],
+                           lambda.store_quantile[2],lambda.store_quantile[3],
+                           median(sensitivity_store),sensitivity_quantile[1],
+                           sensitivity_quantile[2],sensitivity_quantile[3], 
+                           median(specificity_store),specificity_quantile[1],
+                           specificity_quantile[2],specificity_quantile[3],
+                           specificity90_spec_quantile[1],
+                           specificity90_spec_quantile[2],specificity90_spec_quantile[3],
+                           specificity95_spec_quantile[1],
+                           specificity95_spec_quantile[2],specificity95_spec_quantile[3])  
+
+write.table(cv_batch_df12, file = paste(output_path, 
+                                        'ProjPred_CV_Generalise_Summary_Compendium.csv',
+                                        sep = ''),
+            row.names = FALSE, sep = ',')

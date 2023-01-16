@@ -13,6 +13,10 @@ auc <- vector("numeric", length = n_models)
 brier <- vector("numeric", length = n_models)
 sensitivity_store <- vector(mode = "numeric", length = n_models)
 specificity_store <- vector(mode = "numeric", length = n_models)
+
+specificity90_store <- list()
+specificity95_store <- list()
+
 rocposcases <- vector(mode = "numeric", length = n_models)
 includedvars <- list(length = n_models)
 roccurve <- vector(mode = "list", length = n_models)
@@ -35,7 +39,7 @@ varsig <- varratios
   
 #Loop for cross validation
 for (j in 1:repeats) {
-  #print(paste('repeat:',j))
+  
   
   # Randomly shuffle the training data
   crossval.train.data <- crossval.train.data[sample(nrow(crossval.train.data)),]
@@ -72,7 +76,11 @@ for (j in 1:repeats) {
   
   
   for (i in 1:outsidefolds) {
+    
+    ij_idx = outsidefolds*(j - 1) + i
+    
 
+    print( paste('Repeat#', j ,', Outside Fold#', i) )
     #Segment data by fold using the which() function
     #this selects a portion of data as function of number of outerfolds, e.g.
     #4 outer folds means 1/4 or 25% of data is used for test, 75% for train
@@ -85,7 +93,7 @@ for (j in 1:repeats) {
     if(generalise_flag){
       #test CV on dataset to generalise to (assigned in LABMARCS_LogisticRegression.m)
       of_crossval.test.data <- crossval.test.data
-      StatModel <- StatModel_ls[[outsidefolds*(j - 1) + i]]
+      StatModel <- StatModel_ls[[ij_idx]]
       refmodel <- get_refmodel(StatModel)
       
     } else{ #test on the portion left out for CV
@@ -94,22 +102,37 @@ for (j in 1:repeats) {
       x <- model.matrix(outcome~., of_crossval.train.data)[,-1]
       idx <- 1:(dim(of_crossval.train.data)[2] - 1) #omit outcome column
       
-      fit <- brm(outcome ~ .,
-                 data = of_crossval.train.data,
-                 family = bernoulli(),
-                 prior = prior(horseshoe(), class = b),
-                 refresh = 0)
+      if (prior_type == 'Horseshoe'){
+        StatModel <- brm(outcome ~ .,
+                   data = of_crossval.train.data,
+                   prior = prior(horseshoe(), class = b),
+                   family = bernoulli(), cores = detectCores(),
+                   threads = threading(2), #threads per core
+                   backend = 'cmdstanr', 
+                   iter = 2000, silent = 2,
+                   control = list(adapt_delta = 0.999, 
+                                  step_size = 0.01, 
+                                  max_treedepth = 15))
+        
+      } else if (prior_type == 'Flat') {
+        StatModel <- brm(outcome ~ .,
+                   data = of_crossval.train.data,
+                   family = bernoulli(), cores = detectCores(),
+                   threads = threading(2), #threads per core
+                   backend = 'cmdstanr', silent = 2,
+                   iter = 2000)
+      }
       
       #save models for test with generalisation set
-      StatModel_ls[[outsidefolds*(j - 1) + i]] <- fit
-      refmodel <- get_refmodel(fit)
+      StatModel_ls[[ij_idx]] <- StatModel
+      
     }
     
     
-    probabilities_of <- predict(object = refmodel, of_crossval.test.data, type = "response")
+    probabilities_of <- predict(object = StatModel, of_crossval.test.data, type = "response")
 
     # Test the best predicted lambda on the remaining data in the outer fold
-    predicted.classes_of <- ifelse(probabilities_of > 0.5, 1, 0)
+    predicted.classes_of <- ifelse(probabilities_of[,'Estimate'] > 0.5, 1, 0)
     
     #model calibration bin each set of probabilites and then count the percent of our
     #patients that fall in that category
@@ -122,7 +145,7 @@ for (j in 1:repeats) {
       if (kk == 1) { kk = 1.1} #adjust for last bin to include 1
       
       #find which patients are in this bin
-      tmp_prob_bin_idx <- (probabilities_of >= kk) & (probabilities_of < kk+cal_interval)
+      tmp_prob_bin_idx <- (probabilities_of[,'Estimate'] >= kk) & (probabilities_of[,'Estimate'] < kk+cal_interval)
       
       #of the patients in the bin what % had the outcome
       cal_p = sum(of_crossval.test.data$outcome[tmp_prob_bin_idx])/sum(tmp_prob_bin_idx)
@@ -130,8 +153,8 @@ for (j in 1:repeats) {
       #save number of interval and %cases in this bin
       #calibration_df[zz,1] = kk
       #what is the % true outcome for this particular bin
-      calibration_df[outsidefolds*(j - 1) + i,zz] = cal_p
-      calibration_n_df[outsidefolds*(j - 1) + i,zz] = sum(tmp_prob_bin_idx)
+      calibration_df[ij_idx,zz] = cal_p
+      calibration_n_df[ij_idx,zz] = sum(tmp_prob_bin_idx)
       
     }
     
@@ -142,77 +165,100 @@ for (j in 1:repeats) {
     # Sensitivity and specificity measures
     conf_matrix_of <- table(predicted.classes_of, of_crossval.test.data$outcome)
     
+    #ROC table - TP/FP/FN/FP
     tab <- matrix(c(0,0,0,0), ncol = 2, byrow = TRUE)
     colnames(tab) <- c('0','1')
     rownames(tab) <- c('0','1')
     tab <- as.table(tab)
     
-    #sometimes the conf matrix is incomplete copy what we do have to tab
+    #sometimes the conf matrix is incomplete, so instead we must copy data manually to table
+    #copy the contents of conf matrix but if there is an error just put 0 in that location
     tryCatch(tab[1,1] <- conf_matrix_of[1,'FALSE'], error = function(e) {tab[1,1] <- 0 } )
     tryCatch(tab[2,1] <- conf_matrix_of[2,'FALSE'], error = function(e) {tab[2,1] <- 0 } )
     tryCatch(tab[1,2] <- conf_matrix_of[1,'TRUE'], error = function(e) {tab[1,2] <- 0 } )
     tryCatch(tab[2,2] <- conf_matrix_of[2,'TRUE'], error = function(e) {tab[2,2] <- 0 } )
     
-    sensitivity_store[outsidefolds*(j - 1) + i] <- as.numeric(sensitivity(tab)['.estimate'])
-    specificity_store[outsidefolds*(j - 1) + i] <- as.numeric(specificity(tab)['.estimate'])
+    sensitivity_store[ij_idx] <- as.numeric(sensitivity(tab)['.estimate'])
+    specificity_store[ij_idx] <- as.numeric(specificity(tab)['.estimate'])
     
     # save ROC curve
-    roccurve[[outsidefolds*(j - 1) + i]] <- roc(outcome ~ c(probabilities_of), 
+    roccurve[[ij_idx]] <- roc(outcome ~ c(probabilities_of[,'Estimate']), 
                                                 data = of_crossval.test.data)
-    rocposcases[[outsidefolds*(j - 1) + i]] <- sum(of_crossval.test.data['outcome'])
+    rocposcases[[ij_idx]] <- sum(of_crossval.test.data['outcome'])
 
-    auc[outsidefolds*(j - 1) + i] <- auc(roccurve[[outsidefolds*(j - 1) + i]])
+    auc[ij_idx] <- auc(roccurve[[ij_idx]])
  
-    #Brier against train data (lasso doesn't have this like GLM?)
-    out_brier_train <- NA
+    #we want to save specificity at 90 & 95% sensitivity - the ROC curve stores sensitivities
+    #so we need to find the index matching the above, sensitivity is stored decreasing from one
+    #so if we subtract our threshold sensitivity we can take the first minimum 
+    s_thresh = 0.90
+    pos_min = roccurve[[ij_idx]]$sensitivities[ (roccurve[[ij_idx]]$sensitivities - s_thresh) > 0 ] - s_thresh
+    #we need the first threhold that is at least 90/95% sensitivity (but also need to exclude
+    #values just below threshold that might be a smaller min)
+    pos_min_rev_idx = seq(length(pos_min),1) #reverse index
+    sens_idx_90 = pos_min_rev_idx[which.min(rev(pos_min))]
+    
+    s_thresh = 0.95
+    pos_min = roccurve[[ij_idx]]$sensitivities[ (roccurve[[ij_idx]]$sensitivities - s_thresh) > 0 ] - s_thresh
+    pos_min_rev_idx = seq(length(pos_min),1) #reverse index
+    sens_idx_95 = pos_min_rev_idx[which.min(rev(pos_min))]
+    
+    #now we can assign values for specifity at 90 & 95% sensitivity
+    #after finishing the loops these lists need to be converted to matrices
+    specificity90_store[[ij_idx]] <- c(roccurve[[ij_idx]]$thresholds[sens_idx_90], 
+                                       roccurve[[ij_idx]]$sensitivities[sens_idx_90], 
+                                       roccurve[[ij_idx]]$specificities[sens_idx_90])
+    
+    specificity95_store[[ij_idx]] <- c(roccurve[[ij_idx]]$thresholds[sens_idx_95], 
+                                       roccurve[[ij_idx]]$sensitivities[sens_idx_95], 
+                                       roccurve[[ij_idx]]$specificities[sens_idx_95])
+    
+    
+    #Brier needs GLM object to do automatically (not brm or glmnet)
+    #BrierScore(predicted.classes_of[,'Estimate'],of_crossval.test.data['outcome'])
 
-    # Brier score against test data
+    # Manual Brier score against test data
     f_t <- predicted.classes_of
     o_t <- of_crossval.test.data$outcome
-    brier[outsidefolds*(j - 1) + i] <- mean(((f_t) - o_t)^2)
+    brier[ij_idx] <- mean(((f_t) - o_t)^2)
     
-    #save a record of the odds ratios
-    if(!generalise_flag){
-      modelcoefs <- exp(coef(StatModel))
-      varnames[[outsidefolds*(j - 1) + i]] <- modelcoefs@Dimnames[[1]]
-      varratios[[outsidefolds*(j - 1) + i]] <- modelcoefs@x
-      
-    } else {
-      modelcoefs <- exp(fixef(StatModel))
-      varnames[[outsidefolds*(j - 1) + i]] <- rownames(modelcoefs)
-      varratios[[outsidefolds*(j - 1) + i]] <- modelcoefs[,2]
-      
-    }
-    
+    modelcoefs <- exp(fixef(StatModel))
+    varnames[[ij_idx]] <- rownames(modelcoefs)
+    varratios[[ij_idx]] <- modelcoefs[,2]
 
-        
-    if (0) { #Verbose Mode
-      print('Model Accuracy')
-      print(out_acc)
-      print('Sensitivity')
-      print(sensitivity_store[outsidefolds*(j - 1) + i])
-      print('Specificity')
-      print(specificity_store[outsidefolds*(j - 1) + i])
-      print('Brier score against test data (fold holdout)')
-      print(brier[outsidefolds*(j - 1) + i])
-      print('Brier Score against Train Data')
-      print(out_brier_train)
-    }
-    
   }
 } #Main Cross-validation loop
   
-#add plot for training and for test
+
+#plot calibration of model expected vs. observed probabilities
 calplot_y <- vector()
+calplot_y_2_5 <- vector()
+calplot_y_97_5 <- vector()
 calplot_x <- vector()
+
 for (kk in 1:dim(calibration_df)[2]) {
+  tmp = calibration_df[!is.nan(calibration_df[,kk]),kk]
   calplot_y[kk] = median(calibration_df[,kk], na.rm = TRUE)
+  calplot_y_2_5[kk] = sort(tmp)[ceiling(length(tmp)*0.025)]
+  calplot_y_97_5[kk] = sort(tmp)[round(length(tmp)*0.975)]
   calplot_x[kk] = kk*cal_interval
 }  
 
-plot(calplot_x, calplot_y, type= 'o', xlab = 'Risk Probability Strata', 
-     ylab = 'Observed % of Population', panel.first = grid(), 
-     main = 'Model Calibration for Test Data')
+calplot_df = data.frame(calplot_x,calplot_y,calplot_y_2_5, calplot_y_97_5)
+
+p1 = ggplot(calplot_df, aes(x = calplot_x , y = calplot_y)) +
+  geom_line() +
+  geom_point() +
+  geom_ribbon(aes(ymin = calplot_y_2_5, ymax = calplot_y_97_5), alpha = 0.2) +
+  xlab("Predicted Probability (Bin Width 0.1)") +
+  ylab("Observed Proportion of Population") 
+
+p1                    
+
+ggsave(paste(save_path,  'CV_', mnum, '_', model_desc_str, '_Median_Calibration_',
+             as.character(n_models), '_models.pdf',sep = ''), device = 'pdf',
+       width = 20, height = 20, units = 'cm', dpi = 300)
+
 
 
 auc_quantile <- as.numeric(quantile(auc, c(.025, .50, .975)))
@@ -221,7 +267,18 @@ lambda.store_quantile <- as.numeric(quantile(lambda.store, c(.025, .50, .975)))
 sensitivity_quantile <- as.numeric(quantile(sensitivity_store, c(.025, .50, .975)))
 specificity_quantile <- as.numeric(quantile(specificity_store, c(.025, .50, .975)))
 
-sink(paste(save_path, 'Model_CV_', mnum, '_', model_desc_str, 'summary.txt',sep = '')) 
+#get quantiles for specificity at particlular sensitiivity
+spec90_mat = do.call(cbind,specificity90_store)
+specificity90_thresh_quantile <- as.numeric(quantile(spec90_mat[1,], c(.025, .50, .975)))
+specificity90_sens_quantile <- as.numeric(quantile(spec90_mat[2,], c(.025, .50, .975)))
+specificity90_spec_quantile <- as.numeric(quantile(spec90_mat[3,], c(.025, .50, .975)))
+
+spec95_mat = do.call(cbind,specificity95_store)
+specificity95_thresh_quantile <- as.numeric(quantile(spec95_mat[1,], c(.025, .50, .975)))
+specificity95_sens_quantile <- as.numeric(quantile(spec95_mat[2,], c(.025, .50, .975)))
+specificity95_spec_quantile <- as.numeric(quantile(spec95_mat[3,], c(.025, .50, .975)))
+
+sink(paste(save_path, 'CV_', mnum, '_', model_desc_str, 'summary.txt',sep = '')) 
 print("Mean AUC")
 print(mean(auc))
 print('Quantile')
@@ -256,18 +313,18 @@ print('t-test Lambda Score CIs')
 t.test(lambda.store)$"conf.int"
 sink()
 
-pdf(paste(save_path, 'Model_CV_', mnum, '_', model_desc_str, 'AUC_Histogram.pdf',sep = ''))
+pdf(paste(save_path, 'CV_', mnum, '_', model_desc_str, 'AUC_Histogram.pdf',sep = ''))
 hist(auc,plot = TRUE, breaks = 25, xlab = 'Area Under the Curve (AUC)',
      main = 'Distibution of AUC Scores')
 abline(v = mean(auc), col = "red")
 abline(v = median(auc), col = "blue")
 dev.off()
   
-pdf(paste(save_path, 'Model_CV_', mnum, '_',model_desc_str, 'BrierScore_Histogram.pdf',sep = ''))
+pdf(paste(save_path, 'CV_', mnum, '_',model_desc_str, 'BrierScore_Histogram.pdf',sep = ''))
 hist(brier,plot = TRUE)
 dev.off()
   
-pdf(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str, 'Lambda_Histogram.pdf',sep = ''))
+pdf(paste(save_path,  'CV_', mnum, '_', model_desc_str, 'Lambda_Histogram.pdf',sep = ''))
 hist(lambda.store,plot = TRUE)
 dev.off()
   
@@ -297,7 +354,7 @@ myPlot <- ggroc(roccurve, legacy.axes = T) +
 
 myPlot
 
-ggsave(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str, 'ROCs_for_',
+ggsave(paste(save_path,  'CV_', mnum, '_', model_desc_str, 'ROCs_for_',
              as.character(n_models), '_models.pdf',sep = ''), device = 'pdf',
        width = 20, height = 20, units = 'cm', dpi = 300)
   
@@ -350,7 +407,7 @@ for (i in 1:(n_models)) {
   }
   EPV[i] <- eventsnumber/variablesinmodel[i]
 } 
-sink(paste(save_path,  'Model_CV_', mnum, '_',model_desc_str,
+sink(paste(save_path,  'CV_', mnum, '_',model_desc_str,
            'Stability_Analysis.txt',sep = ''))
 # (i) Range and mean of the events per variable (EPV)
 #The EPV ratio, computed from the number of candidate variables,
@@ -371,7 +428,7 @@ print(mean(EPV))
 #(not only the selected ones)
   
 # Make histogram showing the number of variables included in each model
-pdf(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str,
+pdf(paste(save_path,  'CV_', mnum, '_', model_desc_str,
           'VariablesPerModel_Histogram.pdf',sep = ''))
 hist(variablesinmodel, 
      main = paste('Distribution of Number of variables selected over', 
@@ -380,7 +437,7 @@ hist(variablesinmodel,
 dev.off()
 
 # Make a bar plot of the included variables
-pdf(file = paste(save_path,  'Model_CV_', mnum, '_', model_desc_str, 
+pdf(file = paste(save_path,  'CV_', mnum, '_', model_desc_str, 
                  'Stability_VariableFrequency.pdf',sep = ''), width = 12, 
     height = 6)
 par(mar = c(10,10,10,10),mai = c(2,1,1,1))
@@ -510,7 +567,7 @@ write.csv(varratios_stat_df,paste(output_path,'BAYES_MedianVarRatios_Compendium.
 
 colnames(freqpairs) <- varnames[[1]]
 rownames(freqpairs) <- varnames[[1]]
-pdf(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str, 
+pdf(paste(save_path,  'CV_', mnum, '_', model_desc_str, 
           'variable_selection_correlation_stability.pdf',sep = ''))
 # correlation plot CURRENTLY MESSY AND MORE ROBUST MEASURES ARE NEEDED
 corrplot(cor(freqpairs), method = "number",number.cex = 0.2,tl.cex = 0.35)

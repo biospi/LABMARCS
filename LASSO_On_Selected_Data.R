@@ -1,8 +1,21 @@
-#-----------------------------------------------------------------------------
-#RUN GLM ON Selected DATA
-StatModel <- glm(outcome ~.,data = SelectedData, family = "binomial")
 
-probabilities <- predict(object = StatModel, SelectedDataOutcome, type = "response")
+#-----------------------------------------------------------------------------
+#RUN GLM ON ALL DATA - OUR BENCHMARK FOR BEST PERFORMANCE
+x <- model.matrix(outcome~., data = SelectedData)[,-1]
+idx <- 1:(dim(SelectedData)[2] - 1) #omit outcome column
+  
+cv.lasso <- cv.glmnet(x,SelectedData$outcome, alpha = 1, 
+                      data = SelectedData[,idx],
+                      nfolds = insidefolds,
+                      family = "binomial")
+StatModel <- glmnet(x, SelectedData$outcome, alpha = 1, 
+                    family = "binomial",
+                    lambda = cv.lasso$lambda.min) #Optimal lambda 
+
+#Setup prediction set on test data
+x.test <- model.matrix(outcome ~., SelectedDataOutcome)[,-1]
+probabilities <- StatModel %>% predict(newx = x.test, type = "response")
+
 predicted.classes <- ifelse(probabilities > 0.5, 1, 0)
 conf_matrix <- table(predicted.classes,SelectedDataOutcome$outcome)
 colnames(conf_matrix) <- c(0,1) #rename so sensitivity & specificity functions work
@@ -10,17 +23,19 @@ colnames(conf_matrix) <- c(0,1) #rename so sensitivity & specificity functions w
 sink(paste(save_path,'GLM_Summary', SelectedData_str,'.txt', sep = ''))
 
 # Summary
-print('Model Summary')
+print('Full Model Summary')
 print(summary(StatModel))
 
 print('Events per Variable')
 print(eventsnumber/ (dim(SelectedData)[2] - 1) )
 
 # Examine odds ratios and 95% CIs
-print('Model Coefficients Odds Ratios')
-print(data.frame(exp(StatModel$coefficients)))
+print('Model Coefficients Odds')
+modelcoefs <- exp(coef(StatModel))
+print(exp(modelcoefs))
 print('Model Coefficients CIs')
-print(exp(confint.default(StatModel)))
+#print(exp(confint.default(StatModel)))
+print('N/A')
 
 # Model accuracy
 print('Accuracy')
@@ -38,8 +53,13 @@ out_spec <- out_spec[,'.estimate'][[1]]
 print(out_spec)
 
 print('Brier Score')
-out_brier <- BrierScore(StatModel)
+#This function only works form glm objects need to manually calculate
+#out_brier <- BrierScore(StatModel) 
+f_t <- predicted.classes
+o_t <- SelectedDataOutcome$outcome
+out_brier = mean(((f_t) - o_t)^2)
 print(out_brier)
+
 
 # Plot ROC curve and find AUC
 roccurve3 <- roc(outcome ~ c(probabilities), data = SelectedDataOutcome)
@@ -66,7 +86,7 @@ ggroc(roccurve3, legacy.axes = T) +
   geom_text(x = 0.1, y = 1, colour = "black", size = 6,
             label = paste('AUC: ', sprintf("%0.2f",out_auc), sep = '') )
 
-ggsave(paste(save_path, 'GLM_', SelectedData_str,'_ROC.pdf', sep = ''),device = 'pdf',
+ggsave(paste(save_path, 'LASSO_', SelectedData_str,'_ROC.pdf', sep = ''),device = 'pdf',
        width = 20, height = 20, units = 'cm', dpi = 300)
 
 #-----------------------------------------------------------------------------
