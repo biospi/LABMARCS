@@ -18,7 +18,12 @@
 #summary.vsel(), print.vsel(), plot.vsel(), suggest_size.vsel(), solution_terms.vsel()
 
 cv_freq=vs$pct_solution_terms_cv
-cv_freq=cv_freq[, 2:dim(cv_freq)[2] ] #remove size column
+if (!is.null(cv_freq)) {
+  cv_freq = cv_freq[, 2:dim(cv_freq)[2] ] #remove size column
+}
+
+
+if (!exists('b_style')) { b_style = 'NA' }
 
 sink(paste(save_path, b_style, '_MaxTerms', nt_max, '_K', N_k, 'Bayes-varSelect-Summary.txt',sep = ''))
 #examine variable selection results
@@ -43,18 +48,18 @@ print('VARIABLE SELECTION LOO FREQUENCY')
 print(cv_freq)
 sink()
 
-#flips it upside down so urea is at the top
-cv_freq2 = apply(cv_freq,2,rev)
-colnames(cv_freq2) = rev(colnames(cv_freq))
-dmelt = melt(cv_freq2)
-colnames(dmelt) = c('Rank','Biomarker','value')
-ggplot(dmelt, aes(x = Rank,
-                   y = Biomarker,
-                   fill = value)) + geom_tile()
-ggsave(paste(save_path, b_style, '_MaxTerms', nt_max, '_K', N_k, 'Bayes_VarSelect_FrequencyHeatmap.pdf',sep = ''), device = 'pdf',
-       width = 20, height = 20, units = 'cm', dpi = 300)
-
-
+if (!is.null(cv_freq)) {
+  #flips it upside down so urea is at the top
+  cv_freq2 = apply(cv_freq,2,rev)
+  colnames(cv_freq2) = rev(colnames(cv_freq))
+  dmelt = melt(cv_freq2)
+  colnames(dmelt) = c('Rank','Biomarker','value')
+  ggplot(dmelt, aes(x = Rank,
+                     y = Biomarker,
+                     fill = value)) + geom_tile()
+  ggsave(paste(save_path, b_style, '_MaxTerms', nt_max, '_K', N_k, 'Bayes_VarSelect_FrequencyHeatmap.pdf',sep = ''), device = 'pdf',
+         width = 20, height = 20, units = 'cm', dpi = 300)
+}
 
 plot(vs, stats = c('auc', 'elpd'))
 ggsave(paste(save_path, b_style, '_MaxTerms', nt_max, '_K', N_k, 'Bayes-varSelect-AUC-ELPD.pdf',sep = ''), device = 'pdf',
@@ -66,7 +71,7 @@ ggsave(paste(save_path, b_style, '_MaxTerms', nt_max, '_K', N_k, 'Bayes-varSelec
 
 # Visualise the most relevant variables in the full model -->
 mcmc_areas(as.matrix(refmodel$fit),
-           pars = c("b_Intercept", paste0("b_", solution_terms(vs)[1:10]))) +
+           pars = c("b_Intercept", paste0("b_", solution_terms(vs)))) +
   coord_cartesian(xlim = c(-3, 3)) 
 ggsave(paste(save_path, b_style, '_MaxTerms', nt_max, '_K', N_k, 'Bayes-MCMC_ReducedVar.pdf',sep = ''), device = 'pdf',
        width = 20, height = 20, units = 'cm', dpi = 300)
@@ -83,21 +88,37 @@ ggsave(paste(save_path, b_style, '_MaxTerms', nt_max, '_K', N_k, 'Bayes-MCMC_Red
 #the log predictive density at these points. For instance, the following computes 
 #the mean of the predictive distribution and evaluates the log density at the training 
 #points using the most relevant variables.
-nv <- dim(cv_freq)[2] 
+
+nv = length(vs$solution_terms)
+
 pp_str = paste('ProjPred_V',nv, '_', sep = '')
-proj <- project(vs, nterms = dim(cv_freq)[2] ,seed = 123456,ns = 2000)
+proj <- project(vs, nterms = nv ,seed = 123456,ns = 2000)
 
 #---------------------------------------------
 #eval internal training data performance
 SelectedData_str ='Train_FullTrainData_Test_TrainData'
 pp_data = tr_backup
 source(paste(work_path, 'ProjectivePrediction_Perf.R', sep = ''))
+glm_traindata_batch_df9[m_ctr,] <- c('ProjPred', readingwanted_str, dateRange, outcome_str,
+                                     out_acc,out_auc, out_brier, out_sen, out_spec)
+
+write.table(glm_traindata_batch_df9, file = paste(output_path, pp_str, SelectedData_str, 
+                                                  'Batch_ProjPred_Summary_Table.csv',
+                                                  sep = ''), 
+            row.names = FALSE, sep = ',')
 
 #---------------------------------------------
 #Now eval external validation data performance
 SelectedData_str ='Train_FullTrainData_Test_Generalise'
 pp_data = test_backup
 source(paste(work_path, 'ProjectivePrediction_Perf.R', sep = ''))
+glm_traindata_batch_df10[m_ctr,] <- c('ProjPred', readingwanted_str, dateRange, outcome_str,
+                                     out_acc,out_auc, out_brier, out_sen, out_spec)
+
+write.table(glm_traindata_batch_df10, file = paste(output_path, pp_str, SelectedData_str, 
+                                                  'Batch_ProjPred_Summary_Table.csv',
+                                                  sep = ''), 
+            row.names = FALSE, sep = ',')
 
 
 #---------------------------------------------
@@ -144,10 +165,62 @@ proj <- project(vs, solution_terms = solterms,ns = 2000)
 SelectedData_str ='Train_FullTrainData_Test_TrainData'
 pp_data = tr_backup
 source(paste(work_path, 'ProjectivePrediction_Perf.R', sep = ''))
+glm_traindata_batch_df11[m_ctr,] <- c('ProjPred', readingwanted_str, dateRange, outcome_str,
+                                      out_acc,out_auc, out_brier, out_sen, out_spec)
+
+write.table(glm_traindata_batch_df11, file = paste(output_path, pp_str, SelectedData_str, 
+                                                   'Batch_ProjPred_Summary_Table.csv',
+                                                   sep = ''), 
+            row.names = FALSE, sep = ',')
 
 #---------------------------------------------
 #Now eval external validation data performance
 SelectedData_str ='Train_FullTrainData_Test_Generalise'
 pp_data = test_backup
 source(paste(work_path, 'ProjectivePrediction_Perf.R', sep = ''))
+glm_traindata_batch_df12[m_ctr,] <- c('ProjPred', readingwanted_str, dateRange, outcome_str,
+                                      out_acc,out_auc, out_brier, out_sen, out_spec)
+
+write.table(glm_traindata_batch_df12, file = paste(output_path, pp_str, SelectedData_str, 
+                                                   'Batch_ProjPred_Summary_Table.csv',
+                                                   sep = ''), 
+            row.names = FALSE, sep = ',')
+
+
+#Get the model coefficients 
+beta_store <- matrix(data = NA, nrow = nv, ncol = length(proj$submodl))
+alpha_store <- matrix(data = NA, nrow = 1, ncol = length(proj$submodl))
+for (xcx in seq(1,length(proj$submodl))) {
+  beta_store[,xcx] = exp(proj$submodl[[xcx]]$beta)
+  alpha_store[,xcx] = exp(proj$submodl[[xcx]]$alpha)
+  
+}
+rownames(beta_store) <- rownames(proj$submodl[[1]]$beta)
+
+#get coefficient and upper/lower bound
+c2_5 = round(dim(beta_store)[2]*0.025)
+c50 = round(dim(beta_store)[2]*0.5)
+c97_5 = round(dim(beta_store)[2]*0.975)
+beta_coef_store <- matrix(nrow = nv, ncol = 3)
+rownames(beta_coef_store) <- rownames(proj$submodl[[1]]$beta)
+
+for (xcx in seq(1,dim(beta_store)[1])) {
+  tmp = sort(beta_store[xcx,])
+  beta_coef_store[xcx,1] = tmp[c2_5]
+  beta_coef_store[xcx,2] = tmp[c50]
+  beta_coef_store[xcx,3] = tmp[c97_5]
+}
+
+tmp = sort(alpha_store)
+alpha_coef_store = matrix()
+alpha_coef_store[1] = tmp[c2_5]
+alpha_coef_store[2] = tmp[c50]
+alpha_coef_store[3] = tmp[c97_5]
+
+sink(paste(save_path, '_PP_Projection_Coefficients.csv',sep = ''))
+print('Predictor Variables')
+print(beta_coef_store)
+print('Intercept')
+print(alpha_coef_store)
+sink()
 

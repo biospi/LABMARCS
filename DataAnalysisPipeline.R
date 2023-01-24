@@ -448,6 +448,8 @@ if (!BatchAnalysisOn) {
   glm_traindata_batch_df8 <- batch_df
   glm_traindata_batch_df9 <- batch_df
   glm_traindata_batch_df10 <- batch_df
+  glm_traindata_batch_df11 <- batch_df
+  glm_traindata_batch_df12 <- batch_df
   
 } else {
   m_ctr <- m_ctr + 1
@@ -547,15 +549,37 @@ nt_max = 70
 
 #Version that ran all Variables (70 total + outcome)
 #fn = 'ProjPred_CrossVal_Sep16_N472_VARS70.RData' # Sep 16 2022 - n=472 Data, 70 variables (simple_vs - naive)
-#fn = 'ProjPred_CrossVal_3biomarker_model_Sep16.RData' # Sep 16 2022
-fn = 'ProjPred_SelectedVar_Model_v2_N590_VARS51.RData' #n=590, 51 variables, August 26 2022, cv_vs
 
 #version that removed any variables in above analysis that had NA as the top predictor     
-#fn = 'ProjPred_SelectedVar_Model_v2.RData'
+#fn = 'ProjPred_SelectedVar_Model_v2_N590_VARS51.RData' #n=590, 51 variables, August 26 2022, cv_vs
+
+#version with crossvalidation performance to compare against distribution from 100 GLM models 
+fn = 'ProjPred_CrossVal_3biomarker_model_Sep16.RData' # Sep 16 2022
 
 tr_backup = train.data
 test_backup = test.data
 source('ProjectivePrediction_Compute.R')
+
+#Note using pre-saved variable selection results means that some dataframe may need to be reinstated
+#these get overwritten if loading from compute above
+tr_backup = train.data
+test_backup = test.data
+names(tr_backup) = str_replace_all(names(tr_backup),"_","")
+names(test_backup) = str_replace_all(names(test_backup),"_","")
+#convert some booleans to integers as needed to comply with prior variable selection
+
+for (cnm in colnames(tr_backup)) {
+  tr_backup[cnm] = as.numeric(tr_backup[cnm])
+}
+
+#recast as numeric?
+for (ii in c(1:dim(tr_backup)[2])) { #skip #2 age
+  tr_backup[,ii] <- as.numeric(tr_backup[,ii])
+}
+
+for (ii in c(1:dim(test_backup)[2])) { #skip #2 age
+  test_backup[,ii] <- as.numeric(test_backup[,ii])
+}
 
 #now evaluate, plot and visualize
 source('ProjectivePrediction_Eval.R')

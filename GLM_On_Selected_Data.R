@@ -66,7 +66,10 @@ ggroc(roccurve3, legacy.axes = T) +
   geom_text(x = 0.1, y = 1, colour = "black", size = 6,
             label = paste('AUC: ', sprintf("%0.2f",out_auc), sep = '') )
 
-ggsave(paste(save_path, 'GLM_', SelectedData_str,'_ROC.pdf', sep = ''),device = 'pdf',
+mod_str='GLM_'
+ggsave(paste(save_path, mod_str, SelectedData_str,'_ROC.pdf', sep = ''),device = 'pdf',
        width = 20, height = 20, units = 'cm', dpi = 300)
 
 #-----------------------------------------------------------------------------
+
+source(paste(work_path,'CalibrationPlot.R', sep = ''))

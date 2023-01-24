@@ -38,7 +38,7 @@ ggroc(roccurve, legacy.axes = T) +
   scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
   scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) +
   geom_text(x = 0.1, y = 1, colour = "black", size = 6,
-            label = paste('AUC: ', sprintf("%0.2f",auc1), sep = '') )
+            label = paste('AUC: ', sprintf("%0.2f",out_auc), sep = '') )
 
 ggsave(paste(save_path, pp_str, SelectedData_str,'_ROC.pdf', sep = ''),
        device = 'pdf',
@@ -87,5 +87,9 @@ write.table(glm_traindata_batch_df9, file = paste(output_path, pp_str, SelectedD
                                                   sep = ''), 
             row.names = FALSE, sep = ',')
 
+
+probabilities = colMeans(pred)
+mod_str = 'ProjPred_'
+source(paste(work_path, 'CalibrationPlot.R', sep = ''))
 
 
