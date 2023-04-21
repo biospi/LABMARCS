@@ -1,6 +1,11 @@
+#note projective prediction is slow with LOO
+#vs_flag should switch between calculating 
+cv_style = 'Naive' # 'KFold' or 'LOO'
+vs_flag = FALSE
+use_precomputed = 0
+
+
 # perform nested cross-validation to report on the  models
-
-
 mnum = 'PP'
 print("Run proj pred bayes Model Cross Validation...")
 model_desc_str = paste(cv_desc,mnum,'_R',as.character(repeats),'_OF', 
@@ -9,7 +14,7 @@ model_desc_str = paste(cv_desc,mnum,'_R',as.character(repeats),'_OF',
   
 # Initialize outcome measures
 lambda.store <- vector("numeric", length = n_models)
-auc <- vector("numeric", length = n_models)
+auc_store <- vector("numeric", length = n_models)
 brier <- vector("numeric", length = n_models)
 sensitivity_store <- vector(mode = "numeric", length = n_models)
 specificity_store <- vector(mode = "numeric", length = n_models)
@@ -24,67 +29,32 @@ varnames <- vector(mode = "list", length = n_models)
 calibration_df = data.frame()
 calibration_n_df = data.frame()
 
-
 #initiate stat model list data structure (don't need to reset when test generalisation)
-if (!generalise_flag) {
-  StatModel_ls <- vector(mode = "list", length = n_models)
+if (varselect_flag) {
   vs_ls <- vector(mode = "list", length = n_models)
 }
 
 #Technically the dimension should be columns -1 since we don't include outcome
 #in predictions, but intercept is added in list of coefficients
-varratios <- as_tibble(matrix(99,nrow = n_models,ncol = dim(crossval.train.data)[2] ))
-colnames(varratios) <- names(crossval.train.data)
-varratios <- rename(varratios, '(Intercept)' = 'outcome' )
+varratios <- as_tibble(matrix(99,nrow = n_models,ncol = dim(train.data)[2] )) #+1 for intcercept
+colnames(varratios) <- names(train.data)
+names(varratios) = str_replace_all(names(varratios),"_","")
+varratios <- rename(varratios, 'Intercept' = 'outcome' )
 
 #store the p-values as glm   
 varsig <- varratios
 
 #Loop for cross validation
-#for (j in 1:repeats) {
 j = 0
 repeat_flag = FALSE
 
-while (j <= repeats) {
+print('Before ProjPred CV loop')
+while (j < repeats) {
   
   j = j + 1
   
   print(paste('repeat:',j))
-  
-  # Randomly shuffle the training data
-  crossval.train.data <- crossval.train.data[sample(nrow(crossval.train.data)),]
-  
-  # Create n equally sized outer folds
-  data.outerfolds <- cut(seq(1,nrow(crossval.train.data)),breaks = outsidefolds,
-                         labels = FALSE)
-
-  #Make sure each split has pos/neg examples, else resample
-  testSmp = TRUE 
-  while (testSmp) {
-    for (i in 1:outsidefolds) {
-      
-      #Segment data by fold using the which() function 
-      testIndexes <- which(data.outerfolds == i,arr.ind = TRUE)
-      #cross validation only on train data for outerfolds
-      of_crossval.test.data <- crossval.train.data[testIndexes, ]
-      
-      #currently only require one true sample, could increase if needed
-      if (sum(of_crossval.test.data$outcome) == 0) {
-        print('Resample')
-        crossval.train.data <- crossval.train.data[sample(nrow(crossval.train.data)),]
-        
-        # Create n equally sized outer folds
-        data.outerfolds <- cut(seq(1,nrow(crossval.train.data)),breaks = outsidefolds,
-                               labels = FALSE)
-        
-        break
-      } else if (i == outsidefolds) { #reach the end successfully
-        testSmp = FALSE
-      }
-    }
-  }
-  
-  
+  print('Pre outside fold loop...')
   for (i in 1:outsidefolds) {
     
     ij_idx = outsidefolds*(j - 1) + i
@@ -94,42 +64,46 @@ while (j <= repeats) {
     #Segment data by fold using the which() function
     #this selects a portion of data as function of number of outerfolds, e.g.
     #4 outer folds means 1/4 or 25% of data is used for test, 75% for train
-    testIndexes <- which(data.outerfolds == i,arr.ind = TRUE)
+    testIndexes <- which(shuffle_index_ls[[j]] == i,arr.ind = TRUE)
     #cross validation only on train data for outerfolds
-    of_crossval.train.data <- crossval.train.data[-testIndexes, ]
+    of_crossval.train.data <- train.data[-testIndexes, ]
     
-    #note the generalise data must be run after the initial models have been setup
-    #else the StatModel_ls will be empty and generalisaton will cause an error
+    #Load models computed in the prior bayesian section 
+    StatModel = BAYES_HS_StatModel_ls[[ij_idx]]
+    
     if(generalise_flag){
-      #test CV on dataset to generalise to (assigned in LABMARCS_LogisticRegression.m)
+      #test CV on dataset to generalise  
       of_crossval.test.data <- crossval.test.data
       test_backup = of_crossval.test.data
+      
       #ProjectivePrediction_Compuite.R does some data type correction as BRMS/ProjPred are picky
       names(test_backup) = str_replace_all(names(test_backup),"_","")
-      
-      #recast as numeric?
-      for (ii in c(1:dim(test_backup)[2])) { #skip #2 age
+
+      for (ii in c(1:dim(test_backup)[2])) { 
         test_backup[,ii] <- as.numeric(test_backup[,ii])
       }
       
-      StatModel <- StatModel_ls[[ij_idx]]
       vs <- vs_ls[[ij_idx]]
       refmodel <- get_refmodel(StatModel)
       
-    } else{ #test on the portion left out for CV
-      of_crossval.test.data <- crossval.train.data[testIndexes, ]  
-      
-      #x <- model.matrix(outcome~., of_crossval.train.data)[,-1]
-      #idx <- 1:(dim(of_crossval.train.data)[2] - 1) #omit outcome column
-      cv_style = 'Naive' # 'KFold' or 'LOO'
-      vs_flag = FALSE
-      use_precomputed = 0
+    } else{ 
+      #test on the portion left out for CV
+      of_crossval.test.data <- train.data[testIndexes, ]  
       
       #note projpred needs numeric data so tr_backup and test_backup
       #are transformed via ProjectivePrediction_Compute.R, any further tests
       #need to use _backup data and not the of_crossval.
       tr_backup = of_crossval.train.data
       test_backup = of_crossval.test.data
+
+      names(tr_backup) = str_replace_all(names(tr_backup),"_","")
+      names(test_backup) = str_replace_all(names(test_backup),"_","")
+      
+      #recast as logical
+      for (ii in c(1:dim(test_backup)[2])) { 
+        test_backup[,ii] <- as.numeric(test_backup[,ii])
+        tr_backup[,ii] <- as.logical(tr_backup[,ii])
+      }
       
       #this runs brmfit and also variable selection 
       result = tryCatch({
@@ -138,21 +112,7 @@ while (j <= repeats) {
         return(FALSE)
       })
       
-      if (is.logical(result)) {
-        repeat_flag = TRUE
-        print('Error, Reset j')
-      }
-      
-
-      if (repeat_flag) {
-        print('1.Repeat j as projpred didnot converge!')
-        j = j - 1
-        repeat_flag = FALSE
-        break #shoold break > for (i in 1:outsidefolds) {        
-      }
-
-      #save models for test with generalisation set
-      StatModel_ls[[ij_idx]] <- brmfit
+      #save cv selection for test with generalisation set
       vs_ls[[ij_idx]] <- vs
     }
     
@@ -215,10 +175,10 @@ while (j <= repeats) {
     tab <- as.table(tab)
     
     #sometimes the conf matrix is incomplete copy what we do have to tab
-    tryCatch(tab[1,1] <- conf_matrix_of[1,'FALSE'], error = function(e) {tab[1,1] <- 0 } )
-    tryCatch(tab[2,1] <- conf_matrix_of[2,'FALSE'], error = function(e) {tab[2,1] <- 0 } )
-    tryCatch(tab[1,2] <- conf_matrix_of[1,'TRUE'], error = function(e) {tab[1,2] <- 0 } )
-    tryCatch(tab[2,2] <- conf_matrix_of[2,'TRUE'], error = function(e) {tab[2,2] <- 0 } )
+    tryCatch(tab[1,1] <- conf_matrix_of[1,1], error = function(e) {tab[1,1] <- 0 } )
+    tryCatch(tab[2,1] <- conf_matrix_of[2,1], error = function(e) {tab[2,1] <- 0 } )
+    tryCatch(tab[1,2] <- conf_matrix_of[1,2], error = function(e) {tab[1,2] <- 0 } )
+    tryCatch(tab[2,2] <- conf_matrix_of[2,2], error = function(e) {tab[2,2] <- 0 } )
     
     sensitivity_store[ij_idx] <- as.numeric(sensitivity(tab)['.estimate'])
     specificity_store[ij_idx] <- as.numeric(specificity(tab)['.estimate'])
@@ -254,7 +214,7 @@ while (j <= repeats) {
                                        roccurve[[ij_idx]]$specificities[sens_idx_95])
     
     
-    auc[ij_idx] <- auc(roccurve[[ij_idx]])
+    auc_store[ij_idx] <- auc(roccurve[[ij_idx]])
  
     #Brier against train data (BRM?  doesn't have this like GLM?)
     out_brier_train <- NA #BrierScore(StatModel)
@@ -262,17 +222,18 @@ while (j <= repeats) {
     # Brier score against test data
     #f_t <- predicted.classes_of
     #o_t <- of_crossval.test.data$outcome
-    #brier[ij_idx] <- mean(((f_t) - o_t)^2)
-    brier[ij_idx] <- out_brier_train
+    brier[ij_idx] <- mean(((f_t) - o_t)^2)
     
-    #save a record of the odds ratios
-    stat_tmp <- summary(StatModel)$coeff
     
-    #VarRatios is broken for ProjPred need to debug for now comment out SEP-16-2022
-    ##for (kk in 1:dim(stat_tmp)[1]) {
-    ##  #the odds ratios for them
-    ##  varratios[ij_idx, row.names(stat_tmp)[kk] ] <- exp(stat_tmp[[kk,1]])
-    ##}
+    #save a record of the odds ratios VarRatios for ProjPred (not store
+    #in obvious place accesible via coef)
+    tmp = summary(StatModel)[14]
+    stat_tmp <- tmp$fixed['Estimate']
+    
+    #VarRatios for ProjPred 
+    for (kk in 1:dim(stat_tmp)[1]) {
+      varratios[ij_idx, row.names(stat_tmp)[kk] ] <- exp(stat_tmp[kk,])
+    }
     
     ##for (kk in 1:dim(stat_tmp)[1]) {
     ##  #the p-values for each
@@ -298,20 +259,11 @@ while (j <= repeats) {
   
 } #Main Cross-validation loop
   
-#add plot for training and for test
-calplot_y <- vector()
-calplot_x <- vector()
-for (kk in 1:dim(calibration_df)[2]) {
-  calplot_y[kk] = median(calibration_df[,kk], na.rm = TRUE)
-  calplot_x[kk] = kk*cal_interval
-}  
 
-plot(calplot_x, calplot_y, type= 'o', xlab = 'Risk Probability Strata', 
-     ylab = 'Observed % of Population', panel.first = grid(), 
-     main = 'Model Calibration for Test Data')
+source(paste(work_path,'CalibrationPlot_CV.R', sep = ''))
 
 
-auc_quantile <- as.numeric(quantile(auc, c(.025, .50, .975)))
+auc_quantile <- as.numeric(quantile(auc_store, c(.025, .50, .975)))
 brier_quantile <- as.numeric(quantile(brier, c(.025, .50, .975)))
 lambda.store_quantile <- as.numeric(quantile(lambda.store, c(.025, .50, .975)))
 sensitivity_quantile <- as.numeric(quantile(sensitivity_store, c(.025, .50, .975)))
@@ -332,13 +284,13 @@ specificity95_spec_quantile <- as.numeric(quantile(spec95_mat[3,], c(.025, .50, 
 
 sink(paste(save_path, 'Model_CV_', mnum, '_', model_desc_str, 'summary.txt',sep = '')) 
 print("Mean AUC")
-print(mean(auc))
+print(mean(auc_store))
 print('Quantile')
 print(auc_quantile)
 print('t-test AUC')
-print(t.test(auc))
+print(t.test(auc_store))
 print('t-test CIs')
-print(t.test(auc)$"conf.int")
+print(t.test(auc_store)$"conf.int")
 
 #This problem doesn't occur with GLM - LASSO sometimes picks similar models
 #that aren't very good - so predictions are all false...
@@ -366,10 +318,10 @@ t.test(lambda.store)$"conf.int"
 sink()
 
 pdf(paste(save_path, 'Model_CV_', mnum, '_', model_desc_str, 'AUC_Histogram.pdf',sep = ''))
-hist(auc,plot = TRUE, breaks = 25, xlab = 'Area Under the Curve (AUC)',
+hist(auc_store,plot = TRUE, breaks = 25, xlab = 'Area Under the Curve (AUC)',
      main = 'Distibution of AUC Scores')
-abline(v = mean(auc), col = "red")
-abline(v = median(auc), col = "blue")
+abline(v = mean(auc_store), col = "red")
+abline(v = median(auc_store), col = "blue")
 dev.off()
   
 pdf(paste(save_path, 'Model_CV_', mnum, '_',model_desc_str, 'BrierScore_Histogram.pdf',sep = ''))
@@ -396,7 +348,7 @@ myPlot <- ggroc(roccurve, legacy.axes = T) +
   scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
   scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) +
   geom_text(x = 0.1, y = 1, colour = "black", size = 6,
-            label = paste('Median AUC: ', sprintf("%0.2f",median(auc)), sep = '') ) +
+            label = paste('Median AUC: ', sprintf("%0.2f",median(auc_store)), sep = '') ) +
   geom_text(x = 0.11, y = 0.95, colour = "black", size = 5,
           label = paste('Min/Max/Med: ', sprintf("%d,%d,%0.1f",
                                                           min(rocposcases),
@@ -624,3 +576,4 @@ pdf(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str,
 # correlation plot CURRENTLY MESSY AND MORE ROBUST MEASURES ARE NEEDED
 corrplot(cor(freqpairs), method = "number",number.cex = 0.2,tl.cex = 0.35)
 dev.off()
+

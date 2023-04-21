@@ -57,21 +57,23 @@ if (use_precomputed) {
   }
   
   
+  #no need to recompute as it was done during bayesian CV section
   #fit hs prior version - params set to get convergence - reference model
-  brmfit <- brm(outcome ~ .,
-                data = tr_backup, #train.data,
-                family = bernoulli(),
-                prior = prior(horseshoe(), class = b),
-                cores = parallel::detectCores(),
-                backend = 'cmdstanr',
-                iter = 2000,
-                control = list(adapt_delta = 0.999, 
-                               step_size = 0.01, 
-                               max_treedepth = 15),
-                silent = 2)
+  #brmfit <- brm(outcome ~ .,
+  #              data = tr_backup, #train.data,
+  #              family = bernoulli(),
+  #              prior = prior(horseshoe(), class = b),
+  #              cores = parallel::detectCores(),
+  #              backend = 'cmdstanr',
+  #              iter = 2000,
+  #              control = list(adapt_delta = 0.999, 
+  #                             step_size = 0.01, 
+  #                             max_treedepth = 15),
+  #              silent = 2)
+  #
   
-  
-  refmodel <- get_refmodel(brmfit)
+  #refmodel <- get_refmodel(brmfit)
+  refmodel <- get_refmodel(StatModel)
   
   #validate_search = FALSE variable selection only once on full data set
   #TRUE is default and does var selection every time (but otder presented in out put is

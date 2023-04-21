@@ -18,15 +18,15 @@ var_groups = list("Age",
                   c("LDH_Mild", "LDH_Moderate", "LDH_Severe","LDH_NA"),
                   c("PCT_Abnormal","PCT_NA"),
                   c("PLT_Mild","PLT_Moderate", "PLT_Severe","PLT_NA"),
-                  c( "trig_Abnormal","trig_NA"),
+                  c("trig_Abnormal","trig_NA"),
                   c("trop_Abnormal", "trop_NA"),       
-                  c( "Lymphocytes_Mild","Lymphocytes_Moderate", "Lymphocytes_Severe", "Lymphocytes_NA"),
+                  c("Lymphocytes_Mild","Lymphocytes_Moderate", "Lymphocytes_Severe", "Lymphocytes_NA"),
                   c("Neutrophils_Mild", "Neutrophils_Moderate","Neutrophils_Severe",  "Neutrophils_NA"),
                   c("WCC_Mild","WCC_Moderate","WCC_Severe","WCC_NA"),        
                   c("NLR_Mild","NLR_Moderate","NLR_Severe", "NLR_NA"),
                   c("APTT_Mild", "APTT_Moderate" ,"APTT_NA"),
                   c("PT_Abnormal","PT_NA"),         
-                  c( "poctLAC_Abnormal","poctLAC_NA"),
+                  c("poctLAC_Abnormal","poctLAC_NA"),
                   c("O2_Abnormal", "O2_NA"),
                   c("CO2_Abnormal", "CO2_NA"),        
                   c("poctpH_Abnormal" , "poctpH_NA"),
@@ -90,6 +90,9 @@ model_glm <- vector(mode = "list", length = length(var_groups))
 model_brm <- vector(mode = "list", length = length(var_groups))
 model_brm_hs <- vector(mode = "list", length = length(var_groups))
 
+univar_batch_result_tb_ls <- vector(mode = "list", length = length(var_groups))
+
+
 family_ls = c('glm.fit','firthglm.fit')
 
 # Initialize outcome measures for cross validation (currently using only AUC but just in case)
@@ -117,6 +120,8 @@ roccurve_brm_hs_ctrl <- vector(mode = "list", length = n_models)
 
 StatModel_ls <- vector(mode = "list", length = n_models)
 
+model_desc_str = paste('_R',as.character(repeats),'_OF', 
+                       as.character(outsidefolds), sep = '')
 
 NumberClusters <- 8
 # how many jobs you want the computer to run at the same time
@@ -126,10 +131,16 @@ registerDoSNOW(cl) # use the above cluster
 
 #build individual models for each variable we have recorded factoring in age/gender
 
-#results <- foreach(i = val, .combine = "rbind") %dopar% {
+#Serial version
 #for (i in 1:(length(var_groups)) ) { 
-univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rbind") %dopar% {
-
+#use_parallel = FALSE
+#for (i in 4:5 ) { 
+    
+#-- Parallel version --
+use_parallel = TRUE
+#univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rbind") %dopar% {
+univar_batch_result_tb_PAR <- foreach(i = 4:7, .combine = "rbind") %dopar% {
+    
   source(paste(work_path,'ReloadLibraries.R', sep = ''))
   print('Evaluate Biomarker:')
   print(c(i, var_groups[[i]]))
@@ -160,7 +171,7 @@ univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rb
   if (regexpr('_NA',var_groups[[i]][length(var_groups[[i]])])[1] != -1 ) {
     #remove NAs
     brm_data_ctrl = brm_data_ctrl[ brm_data[, dim(brm_data)[2]] != TRUE , ]
-    #now overwite the original
+    #now overwrite the original
     brm_data = brm_data[ brm_data[, dim(brm_data)[2]] != TRUE , ]
 
     #remove NA column
@@ -289,63 +300,50 @@ univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rb
   }
   
 
+  #------------------------------------------------------------------------
   print('START CROSS-VALIDATION')
+  
+  #tries to ensure same data across variables (note that only
+  #variables recorded all the time will actually be identical
+  set.seed(1023) 
+  
+  #Since not all biomarkers have the same data missingness brm_data fluctuates
+  #per column
   
   #Now run cross validated models 
   for (jj in 1:repeats) {
     print('CV-repeat #')
     print(jj)
     
+    
+    #stratify CV data set as POS/NEG (examples of severe outcomes in full data are split ~30/70)
+    
+    # generate a list of indices for a CV split, we'll then shuffle this and save
+    POS = brm_data[ brm_data$outcome == TRUE, ]
+    NEG = brm_data[ brm_data$outcome == FALSE, ]
+    
+    #sort data with TRUE outcomes first, so indices for stratifying map on correctly
+    brm_data = rbind(POS, NEG)
+    
+    data_split_idx_POS <- cut(seq(1,nrow(POS)),breaks = outsidefolds, labels = FALSE)
+    data_split_idx_NEG <- cut(seq(1,nrow(NEG)),breaks = outsidefolds, labels = FALSE)
+    
     # Randomly shuffle the training data
-    smp = sample(nrow(brm_data))
-    crossval.train.data <- brm_data[smp,]
-    #contstruct a comparison control model without NA's using only age+gender
-    crossval.train.data_ctrl <- brm_data_ctrl[smp,]
-    
-    # Create n equally sized outer folds with label 1:N for each break
-    data.outerfolds <- cut(seq(1,nrow(crossval.train.data)),breaks = outsidefolds,
-                           labels = FALSE)
-    data.outerfolds_ctrl <- cut(seq(1,nrow(crossval.train.data_ctrl)),breaks = outsidefolds,
-                                labels = FALSE)
-    
-    #First Make sure each split has pos/neg examples, else resample
-    testSmp = TRUE 
-    ctr_smp = 0
-    ctr_smp_flag = FALSE
-    while (testSmp) {
-      for (ii in 1:outsidefolds) {
-        
-        #Get fold segment indices 
-        testIndexes <- which(data.outerfolds == ii,arr.ind = TRUE)
-        
-        #cross validation only on train data for outerfolds
-        of_crossval.test.data <- crossval.train.data[testIndexes, ]
-        of_crossval.test.data_ctrl <- crossval.train.data_ctrl[testIndexes, ]
-        
-        #guarantee at least 1 of each outcome
-        if ( length(unique(of_crossval.test.data$outcome)) == 1 ) { #
-          print('Resample')
-          smp=sample(nrow(crossval.train.data))
-          crossval.train.data <- crossval.train.data[smp,]
-          crossval.train.data_ctrl <- crossval.train.data_ctrl[smp, ]
-          
-          # Create n equally sized outer folds
-          data.outerfolds <- cut(seq(1,nrow(crossval.train.data)),breaks = outsidefolds,
-                                 labels = FALSE)
+    shuffled_index_POS <- data_split_idx_POS[sample(nrow(POS)) ]
+    shuffled_index_NEG <- data_split_idx_NEG[sample(nrow(NEG)) ]
+      
+    shuffle_index_ls = c(shuffled_index_POS,shuffled_index_NEG)
 
-          ctr_smp = ctr_smp + 1
-          if (ctr_smp > 100) { #if we can't resample easily just go ahead (models will be bad)
-            print('stop resampling - not enough outcome examples')
-            ctr_smp_flag = TRUE
-            testSmp = FALSE }
-          
-          break
-        } else if (ii == outsidefolds) { #reach the end successfully
-          testSmp = FALSE
-        } 
-      }
-    } # while(testSmp)
-    
+    crossval.train.data <- brm_data
+    #construct a comparison control model without NA's using only age+gender
+    crossval.train.data_ctrl <- brm_data_ctrl
+
+    #check for cases where there aren't enough pos/neg outcomes (the more rare)
+    #to meet the criteria for # of cuts (which is indicated by outsidefolds)
+    if ( length(unique(shuffled_index_POS))<outsidefolds  | length(unique(shuffled_index_NEG))<outsidefolds ) { 
+      ctr_smp_flag = TRUE 
+      } else { ctr_smp_flag = FALSE }
+      
     #Now that we have a valid set of samples proceed to fit models
     if (!ctr_smp_flag) {
       for (ii in 1:outsidefolds) {
@@ -361,7 +359,11 @@ univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rb
         #Segment data by fold using the which() function
         #this selects a portion of data as function of number of outerfolds, e.g.
         #4 outer folds means 1/4 or 25% of data is used for test, 75% for train
-        testIndexes <- which(data.outerfolds == ii,arr.ind = TRUE)
+        
+        testIndexes <- which(shuffle_index_ls == ii,arr.ind = TRUE)
+        
+        #  testIndexes <- which(data.outerfolds == ii,arr.ind = TRUE)
+        
         #cross validation only on train data for outerfolds
         of_crossval.train.data <- crossval.train.data[-testIndexes, ]
         of_crossval.train.data_ctrl <- crossval.train.data_ctrl[-testIndexes, ]
@@ -489,35 +491,42 @@ univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rb
   print('save counter #')
   print(ctr)
   
+  #when debugging its best to use small repeats but this means rounding can sometimes go to zero
+  #could do cieling but easy workaround is to add one
+  if (use_parallel) {
+    eta = 0
+  } else { eta = 1}
+  
+  
   if (!ctr_smp_flag) { #normal sample size
-    univar_batch_result_tb[ctr,'AUC CV CI 2.5'] <- sort(auc)[round(length(auc)*.025)]
+    univar_batch_result_tb[ctr,'AUC CV CI 2.5'] <- sort(auc)[round(length(auc)*.025) + eta]
     univar_batch_result_tb[ctr,'AUC CV CI 50'] <- sort(auc)[round(length(auc)*.5)]
     univar_batch_result_tb[ctr,'AUC CV CI 97.5'] <- sort(auc)[round(length(auc)*.975)]
 
-    univar_batch_result_tb[ctr,'AUC CV CI 2.5'] <- sort(auc)[round(length(auc)*.025)]
+    univar_batch_result_tb[ctr,'AUC CV CI 2.5'] <- sort(auc)[round(length(auc)*.025) + eta]
     univar_batch_result_tb[ctr,'AUC CV CI 50'] <- sort(auc)[round(length(auc)*.5)]
     univar_batch_result_tb[ctr,'AUC CV CI 97.5'] <- sort(auc)[round(length(auc)*.975)]
 
     auc_difference = auc_ctrl - auc
-    univar_batch_result_tb[ctr,'AUC Difference CV CI 2.5'] <- sort(auc_difference)[round(length(auc_difference)*.025)]
+    univar_batch_result_tb[ctr,'AUC Difference CV CI 2.5'] <- sort(auc_difference)[round(length(auc_difference)*.025) + eta]
     univar_batch_result_tb[ctr,'AUC Difference CV CI 50'] <- sort(auc_difference)[round(length(auc_difference)*.5)]
     univar_batch_result_tb[ctr,'AUC Difference CV CI 97.5'] <- sort(auc_difference)[round(length(auc_difference)*.975)]
     
-    univar_batch_result_tb[ctr,'Bayes AUC CV CI 2.5'] <- sort(auc_brm)[round(length(auc_brm)*.025)]
+    univar_batch_result_tb[ctr,'Bayes AUC CV CI 2.5'] <- sort(auc_brm)[round(length(auc_brm)*.025) + eta]
     univar_batch_result_tb[ctr,'Bayes AUC CV CI 50'] <- sort(auc_brm)[round(length(auc_brm)*.5)]
     univar_batch_result_tb[ctr,'Bayes AUC CV CI 97.5'] <- sort(auc_brm)[round(length(auc_brm)*.975)]
     
     auc_brm_difference = auc_brm_ctrl - auc_brm
-    univar_batch_result_tb[ctr,'Bayes AUC Difference CV CI 2.5'] <- sort(auc_brm_difference)[round(length(auc_brm_difference)*.025)]
+    univar_batch_result_tb[ctr,'Bayes AUC Difference CV CI 2.5'] <- sort(auc_brm_difference)[round(length(auc_brm_difference)*.025) + eta]
     univar_batch_result_tb[ctr,'Bayes AUC Difference CV CI 50'] <- sort(auc_brm_difference)[round(length(auc_brm_difference)*.5)]
     univar_batch_result_tb[ctr,'Bayes AUC Difference CV CI 97.5'] <- sort(auc_brm_difference)[round(length(auc_brm_difference)*.975)]
     
-    univar_batch_result_tb[ctr,'Bayes HS AUC CV CI 2.5'] <- sort(auc_brm_hs)[round(length(auc_brm_hs)*.025)]
+    univar_batch_result_tb[ctr,'Bayes HS AUC CV CI 2.5'] <- sort(auc_brm_hs)[round(length(auc_brm_hs)*.025) + eta]
     univar_batch_result_tb[ctr,'Bayes HS AUC CV CI 50'] <- sort(auc_brm_hs)[round(length(auc_brm_hs)*.5)]
     univar_batch_result_tb[ctr,'Bayes HS AUC CV CI 97.5'] <- sort(auc_brm_hs)[round(length(auc_brm_hs)*.975)]
     
     auc_brm_hs_difference = auc_brm_hs_ctrl - auc_brm_hs
-    univar_batch_result_tb[ctr,'Bayes HS AUC Difference CV CI 2.5'] <- sort(auc_brm_hs_difference)[round(length(auc_brm_hs_difference)*.025)]
+    univar_batch_result_tb[ctr,'Bayes HS AUC Difference CV CI 2.5'] <- sort(auc_brm_hs_difference)[round(length(auc_brm_hs_difference)*.025) + eta]
     univar_batch_result_tb[ctr,'Bayes HS AUC Difference CV CI 50'] <- sort(auc_brm_hs_difference)[round(length(auc_brm_hs_difference)*.5)]
     univar_batch_result_tb[ctr,'Bayes HS AUC Difference CV CI 97.5'] <- sort(auc_brm_hs_difference)[round(length(auc_brm_hs_difference)*.975)]
     
@@ -548,17 +557,23 @@ univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rb
     univar_batch_result_tb[ctr,'Bayes HS AUC Difference CV CI 97.5'] <- NA
     
   }  
+  
+  print("Saving intermediate results tables...")
+  write.csv(univar_batch_result_tb, 
+            paste(save_path, model_desc_str,bio_fn,'.var',i, '.intermediate.csv', sep = ''), 
+            row.names = FALSE)
+  
+  if(use_parrallel){
+    return(univar_batch_result_tb) #comment out if not running parallel
+  }
+  
+} # END OF: univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rbind") %dopar% {
 
-  return(univar_batch_result_tb)
 
-} # univar_batch_result_tb_PAR <- foreach(i = 1:(length(var_groups)), .combine = "rbind") %dopar% {
-
-
-model_desc_str = paste('_R',as.character(repeats),'_OF', 
-                       as.character(outsidefolds), sep = '')
 
 print("Saving results tables...")
-write.csv(univar_batch_result_tb_PAR, 
+#parallelism often ends up duplicating rows as results aren't synced just appended
+write.csv(univar_batch_result_tb_PAR[!duplicated(univar_batch_result_tb_PAR),], 
           paste(save_path, model_desc_str,bio_fn,'.csv', sep = ''), 
           row.names = FALSE)
 

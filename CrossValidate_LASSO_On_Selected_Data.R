@@ -8,7 +8,7 @@ model_desc_str = paste(cv_desc,mnum,'_R',as.character(repeats),'_OF',
   
 # Initialize outcome measures
 lambda.store <- vector("numeric", length = n_models)
-auc <- vector("numeric", length = n_models)
+auc_store <- vector("numeric", length = n_models)
 brier <- vector("numeric", length = n_models)
 sensitivity_store <- vector(mode = "numeric", length = n_models)
 specificity_store <- vector(mode = "numeric", length = n_models)
@@ -26,6 +26,7 @@ calibration_n_df = data.frame()
 
 #initiate stat model list data structure (don't need to reset when test generalisation)
 if (!generalise_flag) {
+  print('Training mode...reset StatModel_ls...')
   StatModel_ls <- vector(mode = "list", length = n_models)
 }
 
@@ -36,54 +37,23 @@ varratios <- vector(mode = "list", length = n_models)
 #store the p-values as glm   
 varsig <- varratios
   
+print('Before LASSO CV loop')
+
 #Loop for cross validation
 for (j in 1:repeats) {
-  #print(paste('repeat:',j))
   
-  # Randomly shuffle the training data
-  crossval.train.data <- crossval.train.data[sample(nrow(crossval.train.data)),]
-  
-  # Create n equally sized outer folds
-  data.outerfolds <- cut(seq(1,nrow(crossval.train.data)),breaks = outsidefolds,
-                         labels = FALSE)
-
-  #Make sure each split has pos/neg examples, else resample
-  testSmp = TRUE 
-  while (testSmp) {
-    for (i in 1:outsidefolds) {
-      
-      #Segment data by fold using the which() function 
-      testIndexes <- which(data.outerfolds == i,arr.ind = TRUE)
-      #cross validation only on train data for outerfolds
-      of_crossval.test.data <- crossval.train.data[testIndexes, ]
-      
-      #currently only require one true sample, could increase if needed
-      if (sum(of_crossval.test.data$outcome) == 0) {
-        print('Resample')
-        crossval.train.data <- crossval.train.data[sample(nrow(crossval.train.data)),]
-        
-        # Create n equally sized outer folds
-        data.outerfolds <- cut(seq(1,nrow(crossval.train.data)),breaks = outsidefolds,
-                               labels = FALSE)
-        
-        break
-      } else if (i == outsidefolds) { #reach the end successfully
-        testSmp = FALSE
-      }
-    }
-  }
-  
-  
+  print('Pre outside fold loop...')
   for (i in 1:outsidefolds) {
 
     ij_idx = outsidefolds*(j - 1) + i
-    
+    #print(paste('outsidefolds:',i))
+
     #Segment data by fold using the which() function
     #this selects a portion of data as function of number of outerfolds, e.g.
     #4 outer folds means 1/4 or 25% of data is used for test, 75% for train
-    testIndexes <- which(data.outerfolds == i,arr.ind = TRUE)
+    testIndexes <- which(shuffle_index_ls[[j]] == i,arr.ind = TRUE)
     #cross validation only on train data for outerfolds
-    of_crossval.train.data <- crossval.train.data[-testIndexes, ]
+    of_crossval.train.data <- train.data[-testIndexes, ]
     
     #note the generalise data must be run after the initial models have been setup
     #else the StatModel_ls will be empty and generalisaton will cause an error
@@ -92,8 +62,7 @@ for (j in 1:repeats) {
       of_crossval.test.data <- crossval.test.data
       StatModel <- StatModel_ls[[ij_idx]]
       
-    } else{ #test on the portion left out for CV
-      of_crossval.test.data <- crossval.train.data[testIndexes, ]  
+    } else{ 
       
       x <- model.matrix(outcome~., of_crossval.train.data)[,-1]
       idx <- 1:(dim(of_crossval.train.data)[2] - 1) #omit outcome column
@@ -112,14 +81,13 @@ for (j in 1:repeats) {
       #save models for test with generalisation set
       StatModel_ls[[ij_idx]] <- StatModel
       
+      #test on the portion left out for CV
+      of_crossval.test.data <- train.data[testIndexes, ]  
     }
     
     x.test <- model.matrix(outcome ~., of_crossval.test.data)[,-1]
     probabilities_of <- StatModel %>% predict(newx = x.test, type = "response")
 
-    # Test the best predicted lambda on the remaining data in the outer fold
-    predicted.classes_of <- ifelse(probabilities_of > 0.5, 1, 0)
-    
     #model calibration bin each set of probabilites and then count the percent of our
     #patients that fall in that category
     cal_interval <- 0.1
@@ -143,6 +111,10 @@ for (j in 1:repeats) {
       calibration_n_df[ij_idx,zz] = sum(tmp_prob_bin_idx)
     }
     
+    # Test the best predicted lambda on the remaining data in the outer fold
+    # Note using 0.5 is arbitrary (assumes calibrated model) 
+    # you could vary the threshold to achieve differeent sens/spec
+    predicted.classes_of <- ifelse(probabilities_of > 0.5, 1, 0)
     
     # Model accuracy
     out_acc <- mean(predicted.classes_of == of_crossval.test.data$outcome)
@@ -169,7 +141,7 @@ for (j in 1:repeats) {
                                                 data = of_crossval.test.data)
     rocposcases[[ij_idx]] <- sum(of_crossval.test.data['outcome'])
 
-    auc[ij_idx] <- auc(roccurve[[ij_idx]])
+    auc_store[ij_idx] <- auc(roccurve[[ij_idx]])
  
     
     #we wnat to save specificity at 90 & 95% sensitivity - the ROC curve stores sensitivities
@@ -218,38 +190,10 @@ for (j in 1:repeats) {
 
 
 #plot calibration of model expected vs. observed probabilities
-calplot_y <- vector()
-calplot_y_2_5 <- vector()
-calplot_y_97_5 <- vector()
-calplot_x <- vector()
-
-for (kk in 1:dim(calibration_df)[2]) {
-  tmp = calibration_df[!is.nan(calibration_df[,kk]),kk]
-  calplot_y[kk] = median(calibration_df[,kk], na.rm = TRUE)
-  calplot_y_2_5[kk] = sort(tmp)[ceiling(length(tmp)*0.025)]
-  calplot_y_97_5[kk] = sort(tmp)[round(length(tmp)*0.975)]
-  calplot_x[kk] = kk*cal_interval
-}  
-
-calplot_df = data.frame(calplot_x,calplot_y,calplot_y_2_5, calplot_y_97_5)
-
-p1 = ggplot(calplot_df, aes(x = calplot_x , y = calplot_y)) +
-  geom_line() +
-  geom_point() +
-  geom_ribbon(aes(ymin = calplot_y_2_5, ymax = calplot_y_97_5), alpha = 0.2) +
-  xlab("Predicted Probability (Bin Width 0.1)") +
-  ylab("Observed Proportion of Population") 
-
-p1                    
-
-ggsave(paste(save_path,  'CV_', mnum, '_', model_desc_str, '_Median_Calibration_',
-             as.character(n_models), '_models.pdf',sep = ''), device = 'pdf',
-       width = 20, height = 20, units = 'cm', dpi = 300)
+source(paste(work_path,'CalibrationPlot_CV.R', sep = ''))
 
 
-
-
-auc_quantile <- as.numeric(quantile(auc, c(.025, .50, .975)))
+auc_quantile <- as.numeric(quantile(auc_store, c(.025, .50, .975)))
 brier_quantile <- as.numeric(quantile(brier, c(.025, .50, .975)))
 lambda.store_quantile <- as.numeric(quantile(lambda.store, c(.025, .50, .975)))
 sensitivity_quantile <- as.numeric(quantile(sensitivity_store, c(.025, .50, .975)))
@@ -268,13 +212,13 @@ specificity95_spec_quantile <- as.numeric(quantile(spec95_mat[3,], c(.025, .50, 
 
 sink(paste(save_path, 'CV_', mnum, '_', model_desc_str, 'summary.txt',sep = '')) 
 print("Mean AUC")
-print(mean(auc))
+print(mean(auc_store))
 print('Quantile')
 print(auc_quantile)
 print('t-test AUC')
-print(t.test(auc))
+print(t.test(auc_store))
 print('t-test CIs')
-print(t.test(auc)$"conf.int")
+print(t.test(auc_store)$"conf.int")
 
 #This problem doesn't occur with GLM - LASSO sometimes picks similar models
 #that aren't very good - so predictions are all false...
@@ -302,10 +246,10 @@ t.test(lambda.store)$"conf.int"
 sink()
 
 pdf(paste(save_path, 'CV_', mnum, '_', model_desc_str, 'AUC_Histogram.pdf',sep = ''))
-hist(auc,plot = TRUE, breaks = 25, xlab = 'Area Under the Curve (AUC)',
+hist(auc_store,plot = TRUE, breaks = 25, xlab = 'Area Under the Curve (AUC)',
      main = 'Distibution of AUC Scores')
-abline(v = mean(auc), col = "red")
-abline(v = median(auc), col = "blue")
+abline(v = mean(auc_store), col = "red")
+abline(v = median(auc_store), col = "blue")
 dev.off()
   
 pdf(paste(save_path, 'CV_', mnum, '_',model_desc_str, 'BrierScore_Histogram.pdf',sep = ''))
@@ -332,7 +276,7 @@ myPlot <- ggroc(roccurve, legacy.axes = T) +
   scale_x_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) + 
   scale_y_continuous(breaks = seq(0,1,0.25), labels = seq(0,1,0.25)) +
   geom_text(x = 0.1, y = 1, colour = "black", size = 6,
-            label = paste('Median AUC: ', sprintf("%0.2f",median(auc)), sep = '') ) +
+            label = paste('Median AUC: ', sprintf("%0.2f",median(auc_store)), sep = '') ) +
   geom_text(x = 0.11, y = 0.95, colour = "black", size = 5,
           label = paste('Min/Max/Med: ', sprintf("%d,%d,%0.1f",
                                                           min(rocposcases),

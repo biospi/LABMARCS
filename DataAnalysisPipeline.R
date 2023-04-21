@@ -4,11 +4,12 @@
 #occasionally on an error it sometimes hangs and won't allow return to prompt in the console
 #in this case you may need to restart kernel and then comment this portion out until you
 #resolve what the error is coming from and fix the bug
-#source('StopScriptOnError.R')
+#source(paste(work_path, 'StopScriptOnError.R', sep = ''))
 
 # Location of Rscripts & save intermediate processed files
 if (!exists('work_path')) {
   work_path <- 'C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/source/'
+  setwd(work_path)
 }
 
 #Location of graphs and tables outputted
@@ -45,18 +46,19 @@ Comorbidities <- 0
 # readingwanted variables.
 
 if (!exists("BatchAnalysisOn")) {
-    dateRange <- 3 # 1, 3, 5, 7,14days
-    readingwanted <- 1 # 0-worst, 1-first, 2-mean
+    dateRange = 3 # 1, 3, 5, 7,14days
+    readingwanted = 1 # 0-worst, 1-first, 2-mean
     # outcomeselection (1) all severe outcomes (2) ICU admission (3) death
-    outcomeselection <- 1
-    BatchAnalysisOn <- 0
+    outcomeselection = 1
+    BatchAnalysisOn = 0
     
     # Cross Validation Parameters
     # Set number of outer fold repeats, outer folds and inner folds
-    repeats <- 20 #1000KCH How many times should we shuffle the data
-    outsidefolds <- 5 #10KCH How many splits of the shuffled data (5=80/20%)
+    repeats = 20 # How many times should we shuffle the data
+    outsidefolds = 5 #5 #How many splits of the shuffled data (5=80/20%)
+    #repeats * outsidefold = number of CV trials, hence 20*5 = 100 
     # can't go lower as small test sets may only have example of one class
-    insidefolds <- 5 #10KCH (only relevant for LASSO)
+    insidefolds = 5 #10KCH (only relevant for LASSO)
 }
 
 n_models <- repeats*outsidefolds
@@ -311,7 +313,7 @@ sink()
 #that exceeds some threshold (using 55% default). We opt to instead inlcude missing
 #data as test not taken
 fulldata_sv <- train.data_NoDummy #assign which dataset to look for missing %
-source('RemoveLowDataColumns.R')
+source(paste(work_path, "RemoveLowDataColumns.R", sep = ''))
 #note don't remove here because it disrupts dummy variable creation (which has
 #hard coded names)
 
@@ -384,6 +386,15 @@ sum(test.data$outcome)/dim(test.data)[1] # 0.3214709
 
 
 
+##------------------------------------------------------------------------------
+### Create Cross-validation Data
+
+# Precompute a data set to be shared across all models for cross validation
+# Use stratification to first sort outcomes and then guarantee each split
+# has similar TRUE examples for severe outcomes ~30%
+print('Create CV data set shuffled inidices using Repeat/Folds...')
+source('Create_CV_DataSet.R')
+##------------------------------------------------------------------------------
 
 
 ##------------------------------------------------------------------------------
@@ -397,6 +408,7 @@ if (0) {
   print('Run Single Biomarker tests...')
   #binary_flag = 1
   #bio_fn = 'SingleBiomarker_AgeGen_AllCases_BinaryLevels.csv'
+  #Single threaded version, now deprecated
   #source(paste(work_path,'Single_Biomarker_Tests.R', sep = ''))
   
   binary_flag = 0
@@ -404,6 +416,7 @@ if (0) {
   source(paste(work_path,'Single_Biomarker_Tests_CrossValidate_with_AgeGenderCV_Control_PARALLEL.R', sep = ''))
   #note bug atm, the parallell results have repetition so need to be manually edited
 }
+
 
 
 #Given the single tests now remove any invalid/unwanted variables
@@ -460,37 +473,20 @@ if (!BatchAnalysisOn) {
 source(paste(work_path,'GLM_Models_without_CV.R', sep = ''))
 
   
-#----------- LASSO Models  Internal validation and External---------------------
+# Note lasso inspired is run later as we need the CV to generate the list of variables to choose
+# this method (although used by others) commits a multiple comparison/selective inference error
+# as we run lasso and then rerun smaller set of vars on same data, see for a better
+# alternative https://cran.r-project.org/web/packages/selectiveInference/index.html
 source(paste(work_path,'LASSO_Models_without_CV.R', sep = ''))
 
-#run GLM using LASSO suggested variables  
-#construct list with reduced variables
-lasso_var_ls = c('outcome', "Age",
-                 "CRP_Abnormal", "CRP_NA", 
-                 "FER_Mild",  "FER_Moderate", "FER_Severe",  "FER_NA", 
-                 "fib_Mild", "fib_Severe",  "fib_NA",                 
-                 "HB_Mild",  "HB_Moderate", "HB_Severe",  "HB_NA",               
-                 "LDH_Mild", "LDH_Moderate", "LDH_Severe", "LDH_NA", 
-                 "PLT_Mild", "PLT_Moderate", "PLT_Severe", "PLT_NA",
-                 "Lymphocytes_Mild", "Lymphocytes_Moderate", "Lymphocytes_Severe", "Lymphocytes_NA",
-                 "Neutrophils_Mild", "Neutrophils_Moderate", "Neutrophils_Severe", "Neutrophils_NA", 
-                 "NLR_Mild", "NLR_Moderate", "NLR_Severe", "NLR_NA",
-                 "APTT_Mild", "APTT_Moderate", "APTT_NA",
-                 "PT_Abnormal", "PT_NA", 
-                 "poctLAC_Abnormal", "poctLAC_NA",
-                 "poctpH_Abnormal", "poctpH_NA",
-                 "viral_coinfection_TRUE",
-                 "bc_coinfection_TRUE")  
-
-source(paste(work_path,'LASSO_Inspired_GLM_Models_without_CV.R', sep = ''))
-
-  
+#BAYESIAN 
 #The bayesian model can take ~30 minutes to converge, set flag to zero if not needed
 if (0) {
   #--Bayesian Models with flat and horseshoe priors Internal validation and External---
   #note convergence is slow for flat prior ~30 minutes + ~5 for horseshoe
   source(paste(work_path,'Bayes_Models_without_CV.R', sep = ''))
 }
+
 
 #-------------------------------------------------------------------------------
 #-----RUN CROSS VALIDATION MODELS ----------------------------------------------
@@ -520,24 +516,36 @@ if (!BatchAnalysisOn) {
   cv_batch_df10 <- cv_batch_df1 
   cv_batch_df11 <- cv_batch_df1 
   cv_batch_df12 <- cv_batch_df1 
+  cv_batch_df13 <- cv_batch_df1 
+  cv_batch_df14 <- cv_batch_df1 
   
   varratios_stat_df <- data.frame() 
 }
 
 
-if (0) { #CV takes a while, especially for the Bayesian models turn to 0 to skip
+print('Begin Cross validation...')
+#takes about 6 hours
+if (1) { # CV takes a while, especially for the Bayesian models turn to 0 to skip
   #----------- RUN CROSS VALIDATION MODELS ---------------------
   # Note this portion takes about 6 hours to run (4 model fits & 4 generalisation) with 5 fold x 20 repeat
   source(paste(work_path,'Run_Models_CrossValidation.R', sep = ''))
+  
+  #----------- LASSO Models  Internal validation and External---------------------
+  # Lasso inspited needs the CV
+  # run GLM using LASSO suggested variables  - LASSO differs on each slice of cross validation use >50%
+  source(paste(work_path,'LASSO_Inspired_GLM_Models_without_CV.R', sep = ''))
+  
 }
+
 
 #-------------------------------------------------------------------------------
 ##---------------- Projective Prediction---------------------- ##
-#To run projective prediction with variable selection
-#source('ProjectivePredictionVariableSelect.R')
+# To run projective prediction with variable selection
+# Not variable selection (if LOO) takes about 1-2 days to run on 8 core i7
+# source(paste(work_path, "ProjectivePredictionVariableSelect.R", sep = ''))
 
-#If use_precomputed==1 then Using pre-computed results for variable selection via BioSpi, 
-#else compute again (which will take a long time if using LOO with cv_varsel)
+# If use_precomputed==1 then Using pre-computed results for variable selection via BioSpi, 
+# else compute again (which will take a long time if using LOO with cv_varsel)
 use_precomputed = 1
 cv_style = 'KFold' #'LOO' or 'KFold
 
@@ -558,7 +566,7 @@ fn = 'ProjPred_CrossVal_3biomarker_model_Sep16.RData' # Sep 16 2022
 
 tr_backup = train.data
 test_backup = test.data
-source('ProjectivePrediction_Compute.R')
+source(paste(work_path, 'ProjectivePrediction_Compute.R', sep = ''))
 
 #Note using pre-saved variable selection results means that some dataframe may need to be reinstated
 #these get overwritten if loading from compute above
@@ -582,8 +590,7 @@ for (ii in c(1:dim(test_backup)[2])) { #skip #2 age
 }
 
 #now evaluate, plot and visualize
-source('ProjectivePrediction_Eval.R')
-
+source(paste(work_path, 'ProjectivePrediction_Eval.R', sep = ''))
 
 #run one last round of cross validation with our reduced variable model
 
