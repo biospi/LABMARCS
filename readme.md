@@ -16,9 +16,10 @@ The LABMARCS study aims to analyse all the available laboratory values of differ
 
 This project requires access to the LABMARCS dataset which cannot be included here. To use this code, simply download the github repository and set data/ouput paths specified in the key .R files below
 to your local directory structure: Ensure working directories throughout the code are modified to these local folders.
-> DataPreparation.R
-> DataAnalysisPipeline.R
-> Analysis_Batch.R
+
+DataPreparation.R
+DataAnalysisPipeline.R
+Analysis_Batch.R
 
 ## Version and depdendencies
 
