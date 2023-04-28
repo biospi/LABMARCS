@@ -404,7 +404,7 @@ source('Create_CV_DataSet.R')
 #Run single biomarker tests to get an idea of each variables prediction power within the
 #training dataset - Due to cross validation of each biomarker for Standard Bayes-Flate + Bayes-Horsehoe
 #this will take a long time 20 hours 
-if (0) {
+if (1) {
   print('Run Single Biomarker tests...')
   #binary_flag = 1
   #bio_fn = 'SingleBiomarker_AgeGen_AllCases_BinaryLevels.csv'
@@ -481,7 +481,7 @@ source(paste(work_path,'LASSO_Models_without_CV.R', sep = ''))
 
 #BAYESIAN 
 #The bayesian model can take ~30 minutes to converge, set flag to zero if not needed
-if (0) {
+if (1) {
   #--Bayesian Models with flat and horseshoe priors Internal validation and External---
   #note convergence is slow for flat prior ~30 minutes + ~5 for horseshoe
   source(paste(work_path,'Bayes_Models_without_CV.R', sep = ''))
@@ -542,11 +542,14 @@ if (1) { # CV takes a while, especially for the Bayesian models turn to 0 to ski
 ##---------------- Projective Prediction---------------------- ##
 # To run projective prediction with variable selection
 # Not variable selection (if LOO) takes about 1-2 days to run on 8 core i7
-# source(paste(work_path, "ProjectivePredictionVariableSelect.R", sep = ''))
+#once run this can be commented out and precomputed variables can be loaded late
+source(paste(work_path, "ProjectivePredictionVariableSelect.R", sep = ''))
+
+
 
 # If use_precomputed==1 then Using pre-computed results for variable selection via BioSpi, 
 # else compute again (which will take a long time if using LOO with cv_varsel)
-use_precomputed = 1
+use_precomputed = 0
 cv_style = 'KFold' #'LOO' or 'KFold
 
 vs_flag = FALSE   #(vs) validate_search = FALSE variable selection only once on full data set

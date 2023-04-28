@@ -25,7 +25,6 @@ specificity95_store <- list()
 rocposcases <- vector(mode = "numeric", length = n_models)
 includedvars <- list(length = n_models)
 roccurve <- vector(mode = "list", length = n_models)
-varnames <- vector(mode = "list", length = n_models)
 calibration_df = data.frame()
 calibration_n_df = data.frame()
 
@@ -40,6 +39,7 @@ varratios <- as_tibble(matrix(99,nrow = n_models,ncol = dim(train.data)[2] )) #+
 colnames(varratios) <- names(train.data)
 names(varratios) = str_replace_all(names(varratios),"_","")
 varratios <- rename(varratios, 'Intercept' = 'outcome' )
+varnames <- names(varratios)
 
 #store the p-values as glm   
 varsig <- varratios
@@ -377,15 +377,15 @@ print("Run Stability Analysis...")
   
 # Initialize vectors and arrays
 # Count of the number of of times each variable is used in a model
-varcount <- vector("numeric", length = length(varratios[[1]]))
+varcount <- vector("numeric", length = dim(varratios)[2])
 # List of the total number of variables in each model
 variablesinmodel <- vector("numeric", length = n_models)
 # A matrix with model index versus inclusion of each variable in that model
-modelvarmatrix <- array(0L, c(n_models, length(varratios[[1]])))
+modelvarmatrix = array(0L, c(n_models, dim(varratios)[2]))
 # List of the value of the 'events per variable' in each model
 EPV <- vector("numeric", length = n_models)
 # List of the frequency of pairwise inclusion of each variable over all models
-freqpairs <- array(0L, c(length(varratios[[1]]), length(varratios[[1]])))
+freqpairs <- array(0L, c(dim(varratios)[2],dim(varratios)[2]))
   
 # cycle through each model and each variable counting when variable is used
 # i.e. variable value from LASSO =\= 1.
@@ -398,12 +398,12 @@ freqpairs <- array(0L, c(length(varratios[[1]]), length(varratios[[1]])))
 # i.e. variable value from LASSO =\= 1.
 # Also count the number of variables used (=\= 1) in each model in total
 for (i in 1:n_models) {
-  varratios[[i]] <- round(varratios[[i]], digits = 3)
+  varratios[i,] <- round(varratios[i,], digits = 3)
 }
 
 for (i in 1:(n_models)) {
-  for (j in 1:length(varratios[[1]])) {
-    if (varratios[[i]][j] < 0.999 | varratios[[i]][j] > 1.001) {
+  for (j in 1:dim(varratios)[2]) {
+    if (varratios[i,j] < 0.999 | varratios[i,j] > 1.001) {
       varcount[j] <- varcount[j] + 1
       variablesinmodel[i] <- variablesinmodel[i] + 1
       modelvarmatrix[i,j] <- 1
@@ -437,7 +437,7 @@ pdf(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str,
 hist(variablesinmodel, 
      main = paste('Distribution of Number of variables selected over', 
                   as.character(n_models),'models',sep = ' '),
-     xlab = "Number of variables", breaks = (0:length(varcount)))
+     xlab = "Number of variables")
 dev.off()
 
 # Make a bar plot of the included variables
@@ -447,7 +447,7 @@ pdf(file = paste(save_path,  'Model_CV_', mnum, '_', model_desc_str,
 par(mar = c(10,10,10,10),mai = c(2,1,1,1))
 barplotstab <- barplot(varcount/(n_models)*100,
                        main = 'Distribution of Variables Selected', 
-                       ylab = "Frequency (%)", names.arg = varnames[[1]],
+                       ylab = "Frequency (%)", names.arg = varnames,
                        las = 2, cex.names = 0.6, horiz = FALSE )
 abline(h = 50)
 abline(h = 20, col = "red")
@@ -519,7 +519,7 @@ ModelList <- array(0L, c(nmods,(ncol(modelvarmatrixunique) + 2)))
 ModelList[1:nmods,1:ncol(modelvarmatrixunique)] <- modelvarmatrixunique[1:nmods,]
 ModelList[1:nmods,(ncol(modelvarmatrixunique) + 1)] <- modelprop$x[1:nmods]
 ModelList[1:nmods,(ncol(modelvarmatrixunique) + 2)] <- modelprop$cummulative[1:nmods]
-colnames(ModelList) <- c(varnames[[1]],"Prop", "Cummulative") 
+colnames(ModelList) <- c(varnames,"Prop", "Cummulative") 
   
 # (vii) Pairwise variable frequencies
 #A matrix with pairwise inclusion frequencies, which are suitably summarized,
@@ -527,8 +527,8 @@ colnames(ModelList) <- c(varnames[[1]],"Prop", "Cummulative")
 #Sauerbrei, 2003) or as "significant" pairwise over- or under- selection
   
 for (i in 1:(n_models)) {
-  for (j in 1:length(varratios[[1]])) {
-    for (k in 1:length(varratios[[1]])) {
+  for (j in 1:length(dim(varratios)[2])) {
+    for (k in 1:length(dim(varratios)[2])) {
       if (modelvarmatrix[i,j] == 1 & modelvarmatrix[i,k] == 1) {
         freqpairs[j,k] <- freqpairs[j,k] + 1
       }
@@ -545,7 +545,7 @@ for (ii in 1:length(varratios)) {
   }
 }
 
-colnames(varratios_df) <- varnames[[1]]
+colnames(varratios_df) <- varnames
 write.csv(varratios_df,paste(save_path,'BAYES_VarRatios.csv', sep = ''))
 
 #add in variables details about model setup
@@ -565,12 +565,12 @@ for (ii in 1:dim(varratios_df)[2]) {
 }
 
 #note this is a compendium - we don't need to save each loop iteration but do so just in case 
-colnames(varratios_stat_df) <- varnames[[1]]
+colnames(varratios_stat_df) <- varnames
 write.csv(varratios_stat_df,paste(output_path,'BAYES_MedianVarRatios_Compendium.csv', sep = ''))
 
 
-colnames(freqpairs) <- varnames[[1]]
-rownames(freqpairs) <- varnames[[1]]
+colnames(freqpairs) <- varnames
+rownames(freqpairs) <- varnames
 pdf(paste(save_path,  'Model_CV_', mnum, '_', model_desc_str, 
           'variable_selection_correlation_stability.pdf',sep = ''))
 # correlation plot CURRENTLY MESSY AND MORE ROBUST MEASURES ARE NEEDED

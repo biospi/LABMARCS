@@ -764,11 +764,13 @@ specificity95_matrix_gen[,cnum] = spec95_mat[3,]
 
 #---------------------------------------------------------------------------------
 
-sink(paste(save_path ,cv_desc, '_AUC_Difference_table.csv',sep = ''))
 
+sink(paste(save_path ,cv_desc, '_AUC_Difference_table.csv',sep = ''))
+print('AUC difference CIs compared to Bayesian HS (cnum 4)')
+print('auc difference train')
 #prepare table with distribution of differences between models (using GLM as standard)
 for (i in seq(1,n_comparisons)) {
-  auc_matrix_train_diff[,i] = auc_matrix_train[,i]-auc_matrix_train[,4]
+  auc_matrix_train_diff[,i] = auc_matrix_train[,i] - auc_matrix_train[,4]
   auc_matrix_train_diff2_5[i] = quantile(auc_matrix_train_diff[,i],0.025, na.rm = TRUE)
   auc_matrix_train_diff50[i] = quantile(auc_matrix_train_diff[,i],0.5, na.rm = TRUE)
   auc_matrix_train_diff97_5[i] = quantile(auc_matrix_train_diff[,i],0.975, na.rm = TRUE)
@@ -776,8 +778,9 @@ for (i in seq(1,n_comparisons)) {
   print(s)
 }
 
+print('auc difference generalize')
 for (i in seq(1,n_comparisons)) {
-  auc_matrix_gen_diff[,i] = auc_matrix_gen[,i]-auc_matrix_gen[,4]
+  auc_matrix_gen_diff[,i] = auc_matrix_gen[,i] - auc_matrix_gen[,4]
   auc_matrix_gen_diff2_5[i] = quantile(auc_matrix_gen_diff[,i],0.025, na.rm = TRUE)
   auc_matrix_gen_diff50[i] = quantile(auc_matrix_gen_diff[,i],0.5, na.rm = TRUE)
   auc_matrix_gen_diff97_5[i] = quantile(auc_matrix_gen_diff[,i],0.975, na.rm = TRUE)
@@ -786,7 +789,5 @@ for (i in seq(1,n_comparisons)) {
 }
 
 sink()
-
-
 #create table with quartiles
 
