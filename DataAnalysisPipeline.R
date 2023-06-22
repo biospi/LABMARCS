@@ -7,8 +7,13 @@
 #source(paste(work_path, 'StopScriptOnError.R', sep = ''))
 
 # Location of Rscripts & save intermediate processed files
+# directory structure should have (example)
+# C:/data/labmarcs <- source code here (will also write intermediate files)
+# C:/data/labmarcs/output/ <- output writes here
+# C:/data/labmarcs/data/ <- raw data here
+
 if (!exists('work_path')) {
-  work_path <- 'C:/Users/bs16044/OneDrive - University of Bristol/HDR-UK-AMR/LABMARCS/source/'
+  work_path <- 'C:/data/LABMARCS/source/'
   setwd(work_path)
 }
 
